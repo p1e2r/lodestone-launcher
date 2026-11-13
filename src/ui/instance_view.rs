@@ -45,6 +45,46 @@ impl InstanceInputs {
 }
 
 impl LodestoneApp {
+    /// Copy dropped/picked files into an instance's mods/, resourcepacks/ or shaderpacks/.
+    pub fn add_content_files(&mut self, inst_id: &str, sub: &str, paths: &[std::path::PathBuf], cx: &mut Context<Self>) {
+        let Some(inst) = self.instance(inst_id).cloned() else { return };
+        let (added, skipped) = match inst.import_content(sub, paths) {
+            Ok(r) => r,
+            Err(e) => {
+                self.notify_err(format!("{e:#}"));
+                cx.notify();
+                return;
+            }
+        };
+        let kind = match sub {
+            "mods" => ".jar mods",
+            "resourcepacks" => ".zip resource packs",
+            _ => ".zip shader packs",
+        };
+        match (added.len(), skipped.len()) {
+            (0, 0) => {}
+            (0, _) => self.notify_err(format!("Nothing added — this tab only takes {kind}")),
+            (1, 0) => self.notify_ok(format!("Added {}", added[0])),
+            (n, 0) => self.notify_ok(format!("Added {n} files")),
+            (n, k) => self.notify_ok(format!("Added {n} files, skipped {k} that aren't {kind}")),
+        }
+        cx.notify();
+    }
+
+    fn pick_content_files(&mut self, inst_id: String, sub: &'static str, cx: &mut Context<Self>) {
+        let rx = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: true,
+            prompt: Some("Add".into()),
+        });
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = rx.await else { return };
+            let _ = this.update(cx, |this, cx| this.add_content_files(&inst_id, sub, &paths, cx));
+        })
+        .detach();
+    }
+
     fn update_instance(&mut self, id: &str, f: impl FnOnce(&mut Instance)) {
         if let Some(inst) = self.instances.iter_mut().find(|i| i.id == id) {
             f(inst);
@@ -255,6 +295,8 @@ impl LodestoneApp {
         let modded = inst.loader != Loader::Vanilla;
         let entity = cx.entity();
         let inst_id = inst.id.clone();
+        let inst_id_add = inst.id.clone();
+        let inst_id_drop = inst.id.clone();
         let folder = inst.content_dir(sub);
 
         let list: AnyElement = if sub == "mods" && !modded {
@@ -275,7 +317,7 @@ impl LodestoneApp {
                 .gap(px(8.))
                 .child(icon(I::Package).size(px(26.)).text_color(rgb(FAINT)))
                 .child(div().font_weight(FontWeight::SEMIBOLD).child("Nothing installed yet"))
-                .child(muted("Find mods, resource packs and shaders on Modrinth from the Discover page."))
+                .child(muted("Drag files here, use Add files, or find content on Modrinth from Discover."))
                 .into_any_element()
         } else {
             div()
@@ -349,6 +391,12 @@ impl LodestoneApp {
                         div()
                             .flex()
                             .gap(px(8.))
+                            .when(sub != "mods" || modded, |d| {
+                                let id = inst_id_add.clone();
+                                d.child(Button::new("add-files").icon(I::FilePlus).label(if sub == "mods" { "Add .jar" } else { "Add .zip" }).on_click(cx.listener(move |this, _, _, cx| {
+                                    this.pick_content_files(id.clone(), sub, cx);
+                                })))
+                            })
                             .child(Button::new("open-folder").icon(I::FolderOpen).label("Open folder").on_click(move |_, _, cx| {
                                 let _ = std::fs::create_dir_all(&folder);
                                 cx.reveal_path(&folder);
@@ -365,7 +413,38 @@ impl LodestoneApp {
                             }))),
                     ),
             )
-            .child(card().id("content-scroll").flex_1().overflow_y_scrollbar().child(list))
+            .child(
+                card()
+                    .id("content-scroll")
+                    .flex_1()
+                    .when(sub != "mods" || modded, |d| {
+                        d.drag_over::<ExternalPaths>(|style, _, _, _| style.border_color(rgb(ACCENT)).bg(rgb(0x14241b)))
+                            .on_drop(cx.listener(move |this, paths: &ExternalPaths, _, cx| {
+                                this.add_content_files(&inst_id_drop, sub, paths.paths(), cx);
+                            }))
+                    })
+                    .child(list)
+                    .when(sub != "mods" || modded, |d| {
+                        d.child(
+                            div()
+                                .m(px(12.))
+                                .py(px(14.))
+                                .rounded(px(10.))
+                                .border_2()
+                                .border_dashed()
+                                .border_color(rgb(BORDER))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .gap(px(8.))
+                                .text_sm()
+                                .text_color(rgb(MUTED))
+                                .child(icon(I::Upload))
+                                .child(if sub == "mods" { "Drop .jar files here to add mods" } else { "Drop .zip files here to add them" }),
+                        )
+                    })
+                    .overflow_y_scrollbar(),
+            )
     }
 
     // ------------------------------------------------------------ console

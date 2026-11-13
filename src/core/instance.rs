@@ -168,9 +168,39 @@ impl Instance {
         out
     }
 
+    /// Copy files into `mods/`, `resourcepacks/` or `shaderpacks/`.
+    /// Mods must be `.jar`; packs must be `.zip`. Returns (added, skipped) names.
+    pub fn import_content(&self, sub: &str, paths: &[PathBuf]) -> Result<(Vec<String>, Vec<String>)> {
+        import_into(&self.content_dir(sub), sub, paths)
+    }
+
     pub fn memory(&self, s: &Settings) -> u32 {
         self.memory_mb.unwrap_or(s.max_memory_mb)
     }
+}
+
+pub fn accepted_extensions(sub: &str) -> &'static [&'static str] {
+    match sub {
+        "mods" => &["jar"],
+        _ => &["zip"],
+    }
+}
+
+fn import_into(dir: &Path, sub: &str, paths: &[PathBuf]) -> Result<(Vec<String>, Vec<String>)> {
+    let exts = accepted_extensions(sub);
+    let (mut added, mut skipped) = (Vec::new(), Vec::new());
+    for p in paths {
+        let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let ok = p.is_file() && p.extension().map(|e| exts.iter().any(|x| e.eq_ignore_ascii_case(x))).unwrap_or(false);
+        if !ok {
+            skipped.push(name);
+            continue;
+        }
+        std::fs::create_dir_all(dir)?;
+        std::fs::copy(p, dir.join(&name)).map_err(|e| anyhow!("couldn't copy {name}: {e}"))?;
+        added.push(name);
+    }
+    Ok((added, skipped))
 }
 
 pub fn short_loader_version(v: &str) -> String {
@@ -350,4 +380,27 @@ pub fn lan_ip() -> Option<String> {
     let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     sock.connect("1.1.1.1:80").ok()?;
     Some(sock.local_addr().ok()?.ip().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn imports_only_matching_files() {
+        let tmp = std::env::temp_dir().join(format!("lodestone-import-{}", std::process::id()));
+        let src = tmp.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        for f in ["sodium.jar", "Pack.ZIP", "notes.txt"] {
+            std::fs::write(src.join(f), b"x").unwrap();
+        }
+        let files: Vec<PathBuf> = ["sodium.jar", "Pack.ZIP", "notes.txt", "missing.jar"].iter().map(|f| src.join(f)).collect();
+        let (added, skipped) = import_into(&tmp.join("mods"), "mods", &files).unwrap();
+        assert_eq!(added, vec!["sodium.jar"]);
+        assert_eq!(skipped.len(), 3);
+        assert!(tmp.join("mods/sodium.jar").exists());
+        let (added, _) = import_into(&tmp.join("resourcepacks"), "resourcepacks", &files).unwrap();
+        assert_eq!(added, vec!["Pack.ZIP"]);
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 }
