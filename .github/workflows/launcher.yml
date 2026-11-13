@@ -93,8 +93,11 @@ jobs:
           </dict></plist>
           PLIST
           codesign --force --deep --sign - "$APP"
-          # .zip (used by the in-app updater)
-          (cd dist && ditto -c -k --keepParent Lodestone.app Lodestone-${{ matrix.name }}.zip)
+          # Bridge: 0.1.3/0.1.4 can only update from a .zip, so 0.1.5 still ships one.
+          # From 0.1.6 on, macOS is DMG-only (the updater uses the DMG).
+          if [ "$VERSION" = "0.1.5" ]; then
+            (cd dist && ditto -c -k --keepParent Lodestone.app Lodestone-${{ matrix.name }}.zip)
+          fi
           # .dmg with a drag-to-Applications window
           DMG_DIR=dist/dmg
           mkdir -p "$DMG_DIR"
@@ -156,7 +159,7 @@ jobs:
           | macOS, Intel | \`Lodestone-macos-intel.dmg\` |
           | Linux (x86_64) | \`Lodestone-linux-x64.tar.gz\` |
 
-          The \`.zip\` and plain \`.exe\` files are what the in-app updater uses.
+          The plain \`.exe\` is what the in-app updater uses on Windows.
 
           **Windows:** the installer needs no admin rights. It installs to \`%LOCALAPPDATA%\\Programs\\Lodestone\` with a Start Menu entry. SmartScreen may warn about an unknown publisher: choose *More info → Run anyway*.
 

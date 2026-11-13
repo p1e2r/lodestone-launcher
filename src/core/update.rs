@@ -52,7 +52,7 @@ impl Release {
 /// The release file built for this platform.
 pub fn asset_name() -> Option<&'static str> {
     if cfg!(target_os = "macos") {
-        Some(if cfg!(target_arch = "aarch64") { "Lodestone-macos-arm64.zip" } else { "Lodestone-macos-intel.zip" })
+        Some(if cfg!(target_arch = "aarch64") { "Lodestone-macos-arm64.dmg" } else { "Lodestone-macos-intel.dmg" })
     } else if cfg!(target_os = "windows") {
         Some("Lodestone-windows-x64.exe")
     } else if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
@@ -110,11 +110,24 @@ pub async fn install(rel: &Release, rep: &Reporter) -> Result<PathBuf> {
 
 #[cfg(target_os = "macos")]
 fn replace(file: &Path, work: &Path, target: &Path) -> Result<()> {
+    // Mount the DMG privately (not shown in Finder), copy the app out, unmount.
+    let mnt = work.join("mnt");
     let extract = work.join("extract");
+    std::fs::create_dir_all(&mnt)?;
     std::fs::create_dir_all(&extract)?;
-    let ok = std::process::Command::new("ditto").args(["-x", "-k"]).arg(file).arg(&extract).status()?.success();
+    let ok = std::process::Command::new("hdiutil")
+        .args(["attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint"])
+        .arg(&mnt)
+        .arg(file)
+        .status()?
+        .success();
     if !ok {
-        bail!("couldn't unzip the update");
+        bail!("couldn't open the update disk image");
+    }
+    let copied = std::process::Command::new("ditto").arg(mnt.join("Lodestone.app")).arg(extract.join("Lodestone.app")).status();
+    let _ = std::process::Command::new("hdiutil").args(["detach", "-quiet", "-force"]).arg(&mnt).status();
+    if !copied.map(|s| s.success()).unwrap_or(false) {
+        bail!("couldn't copy Lodestone out of the update disk image");
     }
     let new_app = extract.join("Lodestone.app");
     if !new_app.join("Contents/MacOS/Lodestone").exists() {
