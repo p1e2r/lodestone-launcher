@@ -27,8 +27,16 @@ Data lives in the OS app-data folder (`~/Library/Application Support/dev.p1e2r.L
 
 ## Download
 
-Builds for macOS (Apple Silicon), Windows and Linux are produced by GitHub Actions on every push
-(see the **Actions** tab). The macOS app isn't notarized; after unzipping run:
+Get the latest build from **Releases**:
+
+| Platform | File |
+|----------|------|
+| macOS, Apple Silicon | `Lodestone-macos-arm64.zip` |
+| macOS, Intel | `Lodestone-macos-intel.zip` |
+| Windows (64-bit) | `Lodestone-windows-x64.exe` |
+| Linux (x86_64) | `Lodestone-linux-x64.tar.gz` |
+
+The macOS app isn't notarized; after unzipping run:
 
 ```sh
 xattr -dr com.apple.quarantine Lodestone.app

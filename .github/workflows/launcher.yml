@@ -1,11 +1,23 @@
 name: Launcher
 
+# Builds on every push. To publish a release, open Actions → Launcher →
+# Run workflow and tick "release" (the version comes from Cargo.toml), or push
+# a tag `v<version>`.
 on:
   push:
     branches: [main]
-    paths-ignore: ["mods/**", "**.md"]
+    tags: ["v*"]
+    paths-ignore: ["**.md"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub release for the version in Cargo.toml"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -14,29 +26,44 @@ jobs:
       matrix:
         include:
           - os: macos-latest
+            target: aarch64-apple-darwin
             name: macos-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: macos-intel
           - os: windows-latest
+            target: x86_64-pc-windows-msvc
             name: windows-x64
           - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
             name: linux-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libfontconfig1-dev libfreetype-dev libxcb1-dev
       - name: Test
-        run: cargo test --release
+        # The Intel Mac build is cross-compiled on Apple Silicon, so its tests can't run natively.
+        if: matrix.name != 'macos-intel'
+        run: cargo test --release --target ${{ matrix.target }}
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "12.0"
       - name: Package (macOS)
         if: runner.os == 'macOS'
         run: |
           APP=dist/Lodestone.app
           mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-          cp target/release/lodestone "$APP/Contents/MacOS/Lodestone"
+          cp target/${{ matrix.target }}/release/lodestone "$APP/Contents/MacOS/Lodestone"
+          lipo -info "$APP/Contents/MacOS/Lodestone"
           VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           cat > "$APP/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -58,10 +85,10 @@ jobs:
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: mkdir -p dist && cp target/release/lodestone.exe dist/Lodestone-${{ matrix.name }}.exe
+        run: mkdir -p dist && cp target/${{ matrix.target }}/release/lodestone.exe dist/Lodestone-${{ matrix.name }}.exe
       - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: mkdir -p dist && cp target/release/lodestone dist/lodestone && tar -czf dist/Lodestone-${{ matrix.name }}.tar.gz -C dist lodestone
+        run: mkdir -p dist && cp target/${{ matrix.target }}/release/lodestone dist/lodestone && tar -czf dist/Lodestone-${{ matrix.name }}.tar.gz -C dist lodestone
       - uses: actions/upload-artifact@v4
         with:
           name: Lodestone-${{ matrix.name }}
@@ -69,3 +96,44 @@ jobs:
             dist/*.zip
             dist/*.exe
             dist/*.tar.gz
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          ls -la artifacts
+          cat > notes.md <<EOF
+          ## Downloads
+
+          | Platform | File |
+          |----------|------|
+          | macOS, Apple Silicon (M1 and newer) | \`Lodestone-macos-arm64.zip\` |
+          | macOS, Intel | \`Lodestone-macos-intel.zip\` |
+          | Windows 10/11 (64-bit) | \`Lodestone-windows-x64.exe\` |
+          | Linux (x86_64) | \`Lodestone-linux-x64.tar.gz\` |
+
+          **macOS:** the app isn't notarized. After unzipping, run once in Terminal:
+
+          \`\`\`sh
+          xattr -dr com.apple.quarantine Lodestone.app
+          \`\`\`
+
+          **Windows:** SmartScreen may warn about an unknown publisher; choose *More info → Run anyway*.
+
+          macOS 12 or newer is required.
+          EOF
+          gh release create "v${VERSION}" artifacts/* \
+            --target "$GITHUB_SHA" \
+            --title "Lodestone ${VERSION}" \
+            --notes-file notes.md
