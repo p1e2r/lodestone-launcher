@@ -33,7 +33,7 @@ pub fn run(args: &[String]) -> Result<()> {
             Some(cmd @ ("install" | "command")) => {
                 let mc = &args[1];
                 let loader = args.get(2).map(|s| parse_loader(s)).unwrap_or_default();
-                let mut inst = Instance::new(&format!("cli-{mc}"), Kind::Client, mc, loader, args.get(3).cloned());
+                let inst = Instance::new(&format!("cli-{mc}"), Kind::Client, mc, loader, args.get(3).cloned());
                 let id = loaders::install_client(loader, mc, inst.loader_version.as_deref().unwrap_or(""), &rep).await?;
                 let res = versions::resolve(&id).await?;
                 let mut env = Env::host();

@@ -18,6 +18,27 @@ fn main() {
         }
         return;
     }
+    // Windows "Apps & features" uninstall.
+    if args.iter().any(|a| a == "--uninstall") {
+        if let Err(e) = core::install::uninstall() {
+            eprintln!("error: {e:#}");
+        }
+        return;
+    }
+    // We were just moved into the programs folder: remove the old copy.
+    if let Some(i) = args.iter().position(|a| a == core::install::RELOCATED_FLAG) {
+        if let Some(old) = args.get(i + 1) {
+            core::install::remove_old_copy(std::path::PathBuf::from(old));
+        }
+    } else {
+        // Not in the per-user programs folder yet? Move there and relaunch.
+        match core::install::ensure_installed() {
+            Ok(true) => return,
+            Ok(false) => {}
+            Err(e) => eprintln!("couldn't move Lodestone to the programs folder: {e:#}"),
+        }
+    }
+
     // Start the I/O runtime before the UI.
     std::sync::LazyLock::force(&core::net::RT);
 

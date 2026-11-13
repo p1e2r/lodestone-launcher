@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod install;
 pub mod instance;
 pub mod java;
 pub mod launch;

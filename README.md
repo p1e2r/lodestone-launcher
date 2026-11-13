@@ -30,21 +30,23 @@ Data lives in the OS app-data folder (`~/Library/Application Support/dev.p1e2r.L
 
 Get the latest build from **Releases**:
 
-| Platform | File |
-|----------|------|
-| macOS, Apple Silicon | `Lodestone-macos-arm64.zip` |
-| macOS, Intel | `Lodestone-macos-intel.zip` |
-| Windows (64-bit) | `Lodestone-windows-x64.exe` |
+| Platform | Download |
+|----------|----------|
+| Windows (64-bit) | `Lodestone-windows-x64-setup.exe` (installer, no admin needed) |
+| macOS, Apple Silicon | `Lodestone-macos-arm64.dmg` |
+| macOS, Intel | `Lodestone-macos-intel.dmg` |
 | Linux (x86_64) | `Lodestone-linux-x64.tar.gz` |
 
-Lodestone checks for new releases on startup (and from **Settings → Updates**);
-click **Update** in the sidebar to install and relaunch.
+- **Windows:** installs per-user to `%LOCALAPPDATA%\Programs\Lodestone` with a Start Menu entry
+  (searchable) and an uninstaller in Settings → Apps.
+- **macOS:** drag to Applications. The app isn't notarized; run once:
+  `xattr -dr com.apple.quarantine /Applications/Lodestone.app`
+- If you run Lodestone from somewhere else (e.g. Downloads), it moves itself to your per-user
+  programs folder (`%LOCALAPPDATA%\Programs\Lodestone` or `~/Applications`) and relaunches.
 
-The macOS app isn't notarized; after unzipping run:
-
-```sh
-xattr -dr com.apple.quarantine Lodestone.app
-```
+Lodestone checks for new releases on startup (and from **Settings → Updates**); click **Update** in
+the sidebar to install and relaunch. Instances, worlds, accounts and settings are kept: they live in
+the app-data folder, not next to the app.
 
 ## Build
 

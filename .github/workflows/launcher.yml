@@ -93,11 +93,27 @@ jobs:
           </dict></plist>
           PLIST
           codesign --force --deep --sign - "$APP"
-          cd dist && ditto -c -k --keepParent Lodestone.app Lodestone-${{ matrix.name }}.zip
+          # .zip (used by the in-app updater)
+          (cd dist && ditto -c -k --keepParent Lodestone.app Lodestone-${{ matrix.name }}.zip)
+          # .dmg with a drag-to-Applications window
+          DMG_DIR=dist/dmg
+          mkdir -p "$DMG_DIR"
+          cp -R "$APP" "$DMG_DIR/"
+          ln -s /Applications "$DMG_DIR/Applications"
+          hdiutil create -volname "Lodestone" -srcfolder "$DMG_DIR" -ov -format UDZO "dist/Lodestone-${{ matrix.name }}.dmg"
       - name: Package (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: mkdir -p dist && cp target/${{ matrix.target }}/release/lodestone.exe dist/Lodestone-${{ matrix.name }}.exe
+      - name: Installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          & $iscc "/DAppVersion=$version" installer\windows.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Package (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -110,6 +126,7 @@ jobs:
           name: Lodestone-${{ matrix.name }}
           path: |
             dist/*.zip
+            dist/*.dmg
             dist/*.exe
             dist/*.tar.gz
 
@@ -132,20 +149,24 @@ jobs:
           cat > notes.md <<EOF
           ## Downloads
 
-          | Platform | File |
-          |----------|------|
-          | macOS, Apple Silicon (M1 and newer) | \`Lodestone-macos-arm64.zip\` |
-          | macOS, Intel | \`Lodestone-macos-intel.zip\` |
-          | Windows 10/11 (64-bit) | \`Lodestone-windows-x64.exe\` |
+          | Platform | Download |
+          |----------|----------|
+          | Windows 10/11 (64-bit) | \`Lodestone-windows-x64-setup.exe\` (installer) |
+          | macOS, Apple Silicon (M1 and newer) | \`Lodestone-macos-arm64.dmg\` |
+          | macOS, Intel | \`Lodestone-macos-intel.dmg\` |
           | Linux (x86_64) | \`Lodestone-linux-x64.tar.gz\` |
 
-          **macOS:** the app isn't notarized. After unzipping, run once in Terminal:
+          The \`.zip\` and plain \`.exe\` files are what the in-app updater uses.
+
+          **Windows:** the installer needs no admin rights. It installs to \`%LOCALAPPDATA%\\Programs\\Lodestone\` with a Start Menu entry. SmartScreen may warn about an unknown publisher: choose *More info → Run anyway*.
+
+          **macOS:** open the DMG and drag Lodestone to Applications. The app isn't notarized, so run this once in Terminal:
 
           \`\`\`sh
-          xattr -dr com.apple.quarantine Lodestone.app
+          xattr -dr com.apple.quarantine /Applications/Lodestone.app
           \`\`\`
 
-          **Windows:** SmartScreen may warn about an unknown publisher; choose *More info → Run anyway*.
+          **Updating from an older version:** click *Update* in Lodestone. It installs the new version, moves itself to your programs folder if it isn't there already, and keeps all your instances, worlds, accounts and settings.
 
           macOS 12 or newer is required.
           EOF
