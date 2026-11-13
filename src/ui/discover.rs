@@ -222,9 +222,28 @@ impl LodestoneApp {
         let error = self.discover.error.clone();
         let more = (self.discover.results.len() as u64) < self.discover.total;
 
+        let modpack_note = (ct == ContentType::Modpack).then(|| {
+            card()
+                .p(px(14.))
+                .flex()
+                .items_start()
+                .gap(px(10.))
+                .child(icon(I::Info).text_color(rgb(INFO)))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .v_flex()
+                        .gap(px(4.))
+                        .text_sm()
+                        .child(div().font_weight(FontWeight::SEMIBOLD).child("Modpacks create a new instance"))
+                        .child(muted("Installing a modpack never changes your existing instances. Its mods are marked as installed only in the new instance it creates, not anywhere else.")),
+                )
+        });
         let list = div()
             .v_flex()
             .gap(px(10.))
+            .children(modpack_note)
             .when_some(error, |d, e| d.child(card().p(px(16.)).text_sm().text_color(rgb(DANGER)).child(format!("Couldn't search Modrinth: {e}"))))
             .when(!loading && results.is_empty() && self.discover.error.is_none(), |d| d.child(card().p(px(24.)).child(muted("No results. Try another search, or pick “Everything” to search all versions."))))
             .children(results.iter().enumerate().map(|(i, hit)| {
@@ -294,7 +313,7 @@ impl LodestoneApp {
             .when(more && !loading, |d| d.child(div().flex().justify_center().pt(px(6.)).child(Button::new("more").label("Load more").on_click(cx.listener(|this, _, _, cx| this.discover_search(false, cx))))));
 
         let subtitle = match (&target_inst, ct) {
-            (_, ContentType::Modpack) => "Modpacks become new instances. Pick a server to install a pack as a server.".to_string(),
+            (_, ContentType::Modpack) => "Every modpack installs as its own new instance. Pick a server to install a pack as a server.".to_string(),
             (Some(i), _) => format!("Showing {} compatible with {} ({} {}).", ct.label().to_lowercase(), i.name, i.mc_version, i.loader.name()),
             (None, _) => "Browse Modrinth. Pick an instance to see only compatible content and install it.".to_string(),
         };

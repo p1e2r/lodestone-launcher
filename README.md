@@ -21,6 +21,8 @@ A native Minecraft launcher written in Rust with [GPUI](https://gpui.rs).
 - **Instance page**: Play, manage mods / resource packs / shaders, view the game log, set memory.
 - **Server page**: Start/Stop, live console with commands, join address, port / MOTD / online mode / EULA.
 - **Discover**: search Modrinth; pick an instance to see only compatible content.
+  Installing a **modpack** always creates a **new instance** (existing instances are never
+  changed), and the pack's mods are marked as installed **only in that new instance**.
 - **Accounts**: offline usernames.
 
 Data lives in the OS app-data folder (`~/Library/Application Support/dev.p1e2r.Lodestone` on macOS,
