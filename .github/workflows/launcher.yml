@@ -1,0 +1,71 @@
+name: Launcher
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["mods/**", "**.md"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            name: macos-arm64
+          - os: windows-latest
+            name: windows-x64
+          - os: ubuntu-latest
+            name: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev libfontconfig1-dev libfreetype-dev libxcb1-dev
+      - name: Test
+        run: cargo test --release
+      - name: Build
+        run: cargo build --release
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          APP=dist/Lodestone.app
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+          cp target/release/lodestone "$APP/Contents/MacOS/Lodestone"
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          cat > "$APP/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>CFBundleName</key><string>Lodestone</string>
+            <key>CFBundleDisplayName</key><string>Lodestone</string>
+            <key>CFBundleIdentifier</key><string>dev.p1e2r.lodestone</string>
+            <key>CFBundleExecutable</key><string>Lodestone</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${VERSION}</string>
+            <key>CFBundleVersion</key><string>${VERSION}</string>
+            <key>LSMinimumSystemVersion</key><string>12.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict></plist>
+          PLIST
+          codesign --force --deep --sign - "$APP"
+          cd dist && ditto -c -k --keepParent Lodestone.app Lodestone-${{ matrix.name }}.zip
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: mkdir -p dist && cp target/release/lodestone.exe dist/Lodestone-${{ matrix.name }}.exe
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: mkdir -p dist && cp target/release/lodestone dist/lodestone && tar -czf dist/Lodestone-${{ matrix.name }}.tar.gz -C dist lodestone
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Lodestone-${{ matrix.name }}
+          path: |
+            dist/*.zip
+            dist/*.exe
+            dist/*.tar.gz
