@@ -157,7 +157,7 @@ impl LodestoneApp {
         let version_list = div()
             .id("dlg-versions")
             .h(px(230.))
-            .rounded(px(10.))
+            
             .border_1()
             .border_color(rgb(BORDER))
             .bg(rgb(PANEL_2))
@@ -229,7 +229,7 @@ impl LodestoneApp {
                     div()
                         .id("dlg-lv")
                         .h(px(120.))
-                        .rounded(px(10.))
+                        
                         .border_1()
                         .border_color(rgb(BORDER))
                         .bg(rgb(PANEL_2))
@@ -283,10 +283,9 @@ impl LodestoneApp {
                     .w(px(560.))
                     .max_h(relative(0.92))
                     .bg(rgb(PANEL))
-                    .border_1()
+                    .border_2()
                     .border_color(rgb(BORDER))
-                    .rounded(px(16.))
-                    .shadow_2xl()
+                    .shadow(pixel_shadow(8.))
                     .on_click(|_, _, cx| cx.stop_propagation())
                     .child(
                         div()
@@ -298,7 +297,7 @@ impl LodestoneApp {
                                     .flex()
                                     .items_center()
                                     .justify_between()
-                                    .child(div().text_xl().font_weight(FontWeight::BOLD).child(if kind == Kind::Server { "New server" } else { "New instance" }))
+                                    .child(div().text_xl().font_family(PIXEL).child(if kind == Kind::Server { "NEW SERVER" } else { "NEW INSTANCE" }))
                                     .child(div().id("dlg-close").cursor_pointer().text_color(rgb(MUTED)).hover(|s| s.text_color(rgb(TEXT))).child(icon(I::X)).on_click(cx.listener(|this, _, _, cx| {
                                         this.dialog = None;
                                         cx.notify();

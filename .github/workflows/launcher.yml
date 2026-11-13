@@ -34,7 +34,8 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x64
-          - os: ubuntu-latest
+          # Oldest supported Ubuntu, so the binary runs on older glibc too.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             name: linux-x64
     runs-on: ${{ matrix.os }}
@@ -65,6 +66,15 @@ jobs:
           cp target/${{ matrix.target }}/release/lodestone "$APP/Contents/MacOS/Lodestone"
           lipo -info "$APP/Contents/MacOS/Lodestone"
           VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          # App icon
+          ICONSET=dist/AppIcon.iconset
+          mkdir -p "$ICONSET"
+          for s in 16 32 128 256 512; do
+            sips -z $s $s assets/icon.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+            d=$((s * 2))
+            sips -z $d $d assets/icon.png --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+          done
+          iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
           cat > "$APP/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -74,6 +84,7 @@ jobs:
             <key>CFBundleIdentifier</key><string>dev.p1e2r.lodestone</string>
             <key>CFBundleExecutable</key><string>Lodestone</string>
             <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleIconFile</key><string>AppIcon</string>
             <key>CFBundleShortVersionString</key><string>${VERSION}</string>
             <key>CFBundleVersion</key><string>${VERSION}</string>
             <key>LSMinimumSystemVersion</key><string>12.0</string>
@@ -88,7 +99,11 @@ jobs:
         run: mkdir -p dist && cp target/${{ matrix.target }}/release/lodestone.exe dist/Lodestone-${{ matrix.name }}.exe
       - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: mkdir -p dist && cp target/${{ matrix.target }}/release/lodestone dist/lodestone && tar -czf dist/Lodestone-${{ matrix.name }}.tar.gz -C dist lodestone
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/lodestone dist/lodestone
+          cp assets/icon.png dist/lodestone.png
+          tar -czf dist/Lodestone-${{ matrix.name }}.tar.gz -C dist lodestone lodestone.png
       - uses: actions/upload-artifact@v4
         with:
           name: Lodestone-${{ matrix.name }}

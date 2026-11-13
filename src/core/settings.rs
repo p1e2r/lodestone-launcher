@@ -16,6 +16,7 @@ pub struct Settings {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub hide_on_launch: bool,
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -33,6 +34,7 @@ impl Default for Settings {
             width: None,
             height: None,
             hide_on_launch: false,
+            check_updates: true,
         }
     }
 }

@@ -69,7 +69,7 @@ impl LodestoneApp {
                         .items_center()
                         .gap(px(14.))
                         .max_w(px(420.))
-                        .child(div().size(px(64.)).rounded(px(16.)).bg(rgb(PANEL_2)).border_1().border_color(rgb(BORDER)).flex().items_center().justify_center().child(icon(if kind == Kind::Server { I::Server } else { I::Gamepad2 }).size(px(28.)).text_color(rgb(ACCENT))))
+                        .child(div().size(px(64.)).bg(rgb(PANEL_2)).border_1().border_color(rgb(BORDER)).flex().items_center().justify_center().child(icon(if kind == Kind::Server { I::Server } else { I::Gamepad2 }).size(px(28.)).text_color(rgb(ACCENT))))
                         .child(div().text_lg().font_weight(FontWeight::SEMIBOLD).child(if kind == Kind::Server { "No servers yet" } else { "No instances yet" }))
                         .child(div().text_sm().text_color(rgb(MUTED)).text_center().child(if kind == Kind::Server {
                             "Create a server for any version and mod loader, or import a modpack as a server."
@@ -135,12 +135,12 @@ impl LodestoneApp {
         div()
             .id("hero")
             .h(px(240.))
-            .rounded(px(18.))
+            
             .overflow_hidden()
             .relative()
-            .border_1()
+            .border_2()
             .border_color(rgb(BORDER))
-            .shadow_lg()
+            .shadow(pixel_shadow(6.))
             .cursor_pointer()
             .on_click(cx.listener(move |this, _, window, cx| this.open_instance(&id2, window, cx)))
             .child(div().absolute().top_0().left_0().size_full().child(img(super::art::banner(&inst.id)).size_full().object_fit(ObjectFit::Cover)))
@@ -154,12 +154,12 @@ impl LodestoneApp {
                     .v_flex()
                     .justify_end()
                     .gap(px(10.))
-                    .child(div().text_xs().font_weight(FontWeight::BOLD).text_color(rgb(ACCENT)).child(kicker))
+                    .child(div().text_xs().font_family(PIXEL).text_color(rgb(ACCENT)).child(kicker))
                     .child(div().flex().items_center().gap(px(14.)).child(instance_tile(&inst.name, inst.loader, 52.)).child(
                         div()
                             .v_flex()
                             .gap(px(2.))
-                            .child(div().text_3xl().font_weight(FontWeight::BOLD).text_color(rgb(0xffffff)).child(inst.name.clone()))
+                            .child(div().text_3xl().font_family(PIXEL).text_color(rgb(0xffffff)).child(inst.name.to_uppercase()))
                             .child(div().text_sm().text_color(rgb(0xd6dbe4)).child(format!("Minecraft {} · {}", inst.mc_version, inst.loader_label()))),
                     ))
                     .child(
@@ -216,13 +216,13 @@ impl LodestoneApp {
         div()
             .id(SharedString::from(format!("card-{}", inst.id)))
             .w(px(236.))
-            .rounded(px(14.))
+            
             .bg(rgb(PANEL))
-            .border_1()
+            .border_2()
             .border_color(rgb(BORDER))
             .overflow_hidden()
             .cursor_pointer()
-            .shadow_md()
+            .shadow(pixel_shadow(5.))
             .hover(|s| s.border_color(col.opacity(0.8)).bg(rgb(PANEL_2)))
             .on_click(cx.listener(move |this, _, window, cx| this.open_instance(&id, window, cx)))
             .child(
@@ -250,7 +250,7 @@ impl LodestoneApp {
                     .pb(px(14.))
                     .v_flex()
                     .gap(px(3.))
-                    .child(div().text_base().font_weight(FontWeight::SEMIBOLD).truncate().child(inst.name.clone()))
+                    .child(div().text_sm().font_family(PIXEL).truncate().child(inst.name.to_uppercase()))
                     .child(div().text_xs().text_color(rgb(MUTED)).truncate().child(subtitle))
                     .child(div().h(px(10.)))
                     .when(state == RunState::Working, |d| d.child(progress_bar(frac, total == 0)).child(div().h(px(8.))))

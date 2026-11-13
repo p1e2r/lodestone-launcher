@@ -72,6 +72,23 @@ pub fn run(args: &[String]) -> Result<()> {
                 }
                 println!("{}", crate::ui::art::logo().display());
             }
+            Some("icons") => {
+                let dir = std::path::PathBuf::from(args.get(1).map(String::as_str).unwrap_or("assets"));
+                crate::ui::art::write_icons(&dir)?;
+                println!("wrote {}/icon.png and icon.ico", dir.display());
+            }
+            Some("update") => {
+                match crate::core::update::check().await? {
+                    None => println!("UP TO DATE ({})", crate::core::update::CURRENT),
+                    Some(rel) => {
+                        println!("AVAILABLE {} -> {}", crate::core::update::CURRENT, rel.version());
+                        if args.get(1).map(|a| a == "--install").unwrap_or(false) {
+                            let target = crate::core::update::install(&rel, &rep).await?;
+                            println!("INSTALLED {}", target.display());
+                        }
+                    }
+                }
+            }
             Some("account") => {
                 let mut accs = crate::core::accounts::Accounts::load();
                 let a = accs.add(&args[1])?.clone();

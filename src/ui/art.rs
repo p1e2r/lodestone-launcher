@@ -12,7 +12,7 @@ pub const W: u32 = 960;
 pub const H: u32 = 320;
 const B: u32 = 16; // block size in pixels
 const T: u32 = 4; // texel size (4×4 texels per block)
-const VERSION: u32 = 4; // bump to regenerate cached banners
+const VERSION: u32 = 5; // bump to regenerate cached banners
 
 struct Rng(u64);
 impl Rng {
@@ -365,6 +365,209 @@ pub fn logo() -> PathBuf {
     }
     let _ = img.save(&path);
     path
+}
+
+/// Decorative strip for the bottom of the sidebar: stars fading into a
+/// blocky hillside (grass, dirt, stone with ores), a tree and flowers.
+/// Transparent at the top so it blends into the sidebar.
+pub fn sidebar_scene() -> PathBuf {
+    let path = paths().cache().join("banners").join(format!("sidebar-v{VERSION}.png"));
+    if path.exists() {
+        return path;
+    }
+    const SW: u32 = 232;
+    const SH: u32 = 240;
+    const BS: i32 = 8; // block
+    const TS: i32 = 2; // texel
+    let mut img = image::RgbaImage::new(SW, SH);
+    let mut rng = Rng::new("lodestone-sidebar");
+    let put = |img: &mut image::RgbaImage, x: i32, y: i32, w: i32, h: i32, c: [f32; 3], a: u8| {
+        for yy in y.max(0)..(y + h).min(SH as i32) {
+            for xx in x.max(0)..(x + w).min(SW as i32) {
+                let p = px(c).0;
+                img.put_pixel(xx as u32, yy as u32, image::Rgba([p[0], p[1], p[2], a]));
+            }
+        }
+    };
+    let block = |img: &mut image::RgbaImage, rng: &mut Rng, bx: i32, by: i32, c: [f32; 3], top: Option<[f32; 3]>| {
+        for ty in 0..BS / TS {
+            for tx in 0..BS / TS {
+                let base = match top {
+                    Some(t) if ty == 0 || (ty == 1 && rng.f() < 0.4) => t,
+                    _ => c,
+                };
+                let k = 0.88 + rng.f() * 0.22;
+                put(img, bx * BS + tx * TS, by * BS + ty * TS, TS, TS, shade(base, k), 255);
+            }
+        }
+    };
+    let cols = SW as i32 / BS + 1;
+    let rows = SH as i32 / BS;
+    // Stars in the upper part, fading out towards the top.
+    for _ in 0..26 {
+        let (x, y) = (rng.range(0, SW as i32), rng.range(6, (SH as f32 * 0.42) as i32));
+        let a = (50.0 + y as f32 * 1.8).min(220.0) as u8;
+        let s = if rng.f() < 0.2 { 3 } else { 2 };
+        put(&mut img, x, y, s, s, hex(if rng.f() < 0.3 { 0xfff3c4 } else { 0xcfd8ff }), a);
+    }
+    // Distant hill silhouette.
+    let far = heightmap(&mut rng, cols, rows as f32 * 0.42, 1.6, 0.35);
+    for x in 0..cols {
+        for y in far[x as usize]..rows {
+            put(&mut img, x * BS, y * BS, BS, BS, hex(0x1c2230), 255);
+        }
+    }
+    // Near terrain.
+    let near = heightmap(&mut rng, cols, rows as f32 * 0.55, 1.4, 0.42);
+    for x in 0..cols {
+        let t = near[x as usize];
+        for y in t..rows {
+            let d = y - t;
+            if d == 0 {
+                block(&mut img, &mut rng, x, y, hex(0x6b4a2c), Some(hex(0x4f9a33)));
+            } else if d <= 2 {
+                block(&mut img, &mut rng, x, y, hex(0x6b4a2c), None);
+            } else {
+                block(&mut img, &mut rng, x, y, hex(0x5a5f68), None);
+                if rng.f() < 0.12 {
+                    let ore = if rng.f() < 0.4 { hex(0x3ddc84) } else { hex(0x24262b) };
+                    put(&mut img, x * BS + 2, y * BS + 2, 2, 2, ore, 255);
+                    put(&mut img, x * BS + 4, y * BS + 4, 2, 2, ore, 255);
+                }
+            }
+        }
+    }
+    // A tree and some flowers.
+    let tx = rng.range(cols / 2, cols - 4);
+    let tt = near[tx as usize];
+    for i in 1..=3 {
+        block(&mut img, &mut rng, tx, tt - i, hex(0x6b4f2a), None);
+    }
+    for (dx, dy) in [(-1, -4), (0, -4), (1, -4), (-2, -5), (-1, -5), (0, -5), (1, -5), (2, -5), (-1, -6), (0, -6), (1, -6), (0, -7)] {
+        block(&mut img, &mut rng, tx + dx, tt + dy, hex(0x3e8a2e), None);
+    }
+    for _ in 0..5 {
+        let fx = rng.range(1, cols - 2);
+        if (fx - tx).abs() < 3 {
+            continue;
+        }
+        let ft = near[fx as usize];
+        let col = [hex(0xe84a5f), hex(0xf7d154), hex(0x9b7bdc)][rng.range(0, 2) as usize];
+        put(&mut img, fx * BS + 3, ft * BS - 5, 2, 5, hex(0x3e8a2e), 255);
+        put(&mut img, fx * BS + 2, ft * BS - 8, 4, 3, col, 255);
+    }
+    // Torch glow on the left.
+    let gx = rng.range(1, cols / 3);
+    let gt = near[gx as usize];
+    put(&mut img, gx * BS + 3, gt * BS - 9, 2, 9, hex(0x7a5a33), 255);
+    put(&mut img, gx * BS + 2, gt * BS - 12, 4, 4, hex(0xffc94a), 255);
+    for r in [10, 6] {
+        for yy in -r..=r {
+            for xx in -r..=r {
+                let (x, y) = (gx * BS + 4 + xx, gt * BS - 10 + yy);
+                if x < 0 || y < 0 || x >= SW as i32 || y >= SH as i32 || xx * xx + yy * yy > r * r {
+                    continue;
+                }
+                let p = img.get_pixel(x as u32, y as u32).0;
+                if p[3] == 0 {
+                    img.put_pixel(x as u32, y as u32, image::Rgba([255, 200, 90, 18]));
+                }
+            }
+        }
+    }
+    let img = image::imageops::resize(&img, SW * 2, SH * 2, image::imageops::FilterType::Nearest);
+    if let Some(p) = path.parent() {
+        let _ = std::fs::create_dir_all(p);
+    }
+    let _ = img.save(&path);
+    path
+}
+
+/// The 16×16 Lodestone block as RGB cells.
+fn logo_cells() -> Vec<[f32; 3]> {
+    let n = 16u32;
+    let mut rng = Rng::new("lodestone-logo");
+    let mut out = Vec::new();
+    for y in 0..n {
+        for x in 0..n {
+            let edge = x == 0 || y == 0 || x == n - 1 || y == n - 1;
+            let ring = (x == 3 || x == 12) && (3..=12).contains(&y) || (y == 3 || y == 12) && (3..=12).contains(&x);
+            let core = (6..=9).contains(&x) && (6..=9).contains(&y);
+            let core_glow = (5..=10).contains(&x) && (5..=10).contains(&y);
+            out.push(if core {
+                if (x + y) % 3 == 0 { hex(0x8ef5b9) } else { hex(0x3ddc84) }
+            } else if core_glow {
+                hex(0x1f6b44)
+            } else if ring {
+                hex(0x2f3542)
+            } else if edge {
+                hex(0x3a404c)
+            } else {
+                shade(hex(0x59606e), 0.9 + rng.f() * 0.2)
+            });
+        }
+    }
+    out
+}
+
+/// App icon: the block with a hard pixel shadow on a transparent square canvas.
+pub fn icon_rgba(size: u32) -> image::RgbaImage {
+    let mut img = image::RgbaImage::new(size, size);
+    let cells = logo_cells();
+    let margin = (size as f32 * 0.1).round() as u32;
+    let cell = ((size - margin * 2) as f32 / 16.0).floor().max(1.0) as u32;
+    let block = cell * 16;
+    let off = (size - block) / 2;
+    let shadow = (cell / 2).max(1);
+    for y in 0..block {
+        for x in 0..block {
+            let (sx, sy) = (off + x + shadow, off + y + shadow);
+            if sx < size && sy < size {
+                img.put_pixel(sx, sy, image::Rgba([0, 0, 0, 120]));
+            }
+        }
+    }
+    for y in 0..block {
+        for x in 0..block {
+            let c = cells[((y / cell) * 16 + x / cell) as usize];
+            let p = px(c).0;
+            img.put_pixel(off + x, off + y, image::Rgba([p[0], p[1], p[2], 255]));
+        }
+    }
+    img
+}
+
+/// Write `icon.png` (1024²) and a multi-size `icon.ico` into `dir`.
+pub fn write_icons(dir: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    icon_rgba(1024).save(dir.join("icon.png")).map_err(std::io::Error::other)?;
+    let sizes = [16u32, 24, 32, 48, 64, 128, 256];
+    let mut pngs = Vec::new();
+    for s in sizes {
+        let mut buf = Vec::new();
+        image::DynamicImage::ImageRgba8(icon_rgba(s))
+            .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+            .map_err(std::io::Error::other)?;
+        pngs.push((s, buf));
+    }
+    // ICO container with PNG-compressed entries.
+    let mut ico = Vec::new();
+    ico.extend_from_slice(&[0, 0, 1, 0]);
+    ico.extend_from_slice(&(pngs.len() as u16).to_le_bytes());
+    let mut offset = 6 + 16 * pngs.len() as u32;
+    for (s, data) in &pngs {
+        let dim = if *s >= 256 { 0u8 } else { *s as u8 };
+        ico.extend_from_slice(&[dim, dim, 0, 0]);
+        ico.extend_from_slice(&1u16.to_le_bytes());
+        ico.extend_from_slice(&32u16.to_le_bytes());
+        ico.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        ico.extend_from_slice(&offset.to_le_bytes());
+        offset += data.len() as u32;
+    }
+    for (_, data) in &pngs {
+        ico.extend_from_slice(data);
+    }
+    std::fs::write(dir.join("icon.ico"), ico)
 }
 
 #[cfg(test)]

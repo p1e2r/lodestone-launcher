@@ -20,13 +20,42 @@ pub const DANGER: u32 = 0xf2555a;
 pub const WARN: u32 = 0xf5b14c;
 pub const INFO: u32 = 0x5aa9ff;
 
-pub const MONO: &str = if cfg!(target_os = "macos") {
-    "Menlo"
-} else if cfg!(target_os = "windows") {
-    "Consolas"
-} else {
-    "DejaVu Sans Mono"
-};
+/// Pixel font for titles and labels (Silkscreen, SIL Open Font License).
+pub const PIXEL: &str = "Silkscreen";
+
+pub fn register_fonts(cx: &mut App) {
+    let _ = cx.text_system().add_fonts(vec![
+        std::borrow::Cow::Borrowed(include_bytes!("../../assets/fonts/Silkscreen-Regular.ttf").as_slice()),
+        std::borrow::Cow::Borrowed(include_bytes!("../../assets/fonts/Silkscreen-Bold.ttf").as_slice()),
+        std::borrow::Cow::Borrowed(include_bytes!("../../assets/fonts/PixelifySans.ttf").as_slice()),
+        std::borrow::Cow::Borrowed(include_bytes!("../../assets/fonts/VT323-Regular.ttf").as_slice()),
+    ]);
+}
+
+/// Hard, offset, unblurred drop shadow — the pixel-art look.
+pub fn pixel_shadow(offset: f32) -> Vec<BoxShadow> {
+    vec![BoxShadow {
+        color: Hsla::from(rgb(0x000000)).opacity(0.55),
+        offset: point(px(offset), px(offset)),
+        blur_radius: px(0.),
+        spread_radius: px(0.),
+        inset: false,
+    }]
+}
+
+/// Bevel highlights (light top/left, dark bottom/right) like a game block.
+pub fn bevel(d: Div, light: f32, dark: f32, w: f32) -> Div {
+    d.relative()
+        .child(div().absolute().top_0().left_0().right_0().h(px(w)).bg(Hsla::from(rgb(0xffffff)).opacity(light)))
+        .child(div().absolute().top_0().left_0().bottom_0().w(px(w)).bg(Hsla::from(rgb(0xffffff)).opacity(light * 0.7)))
+        .child(div().absolute().bottom_0().left_0().right_0().h(px(w)).bg(Hsla::from(rgb(0x000000)).opacity(dark)))
+        .child(div().absolute().top_0().right_0().bottom_0().w(px(w)).bg(Hsla::from(rgb(0x000000)).opacity(dark * 0.8)))
+}
+
+/// Monospace pixel font for the console (VT323, SIL Open Font License).
+pub const MONO: &str = "VT323";
+/// Body font (Pixelify Sans, SIL Open Font License).
+pub const BODY: &str = "Pixelify Sans";
 
 pub fn loader_color(l: Loader) -> u32 {
     match l {
@@ -69,6 +98,12 @@ fn paint(t: &mut gpui_kit::component::Theme) {
     t.secondary_foreground = c(TEXT);
     t.accent = c(PANEL_3);
     t.accent_foreground = c(TEXT);
+    // Pixel look: square corners everywhere.
+    t.radius = px(0.);
+    t.radius_lg = px(0.);
+    // Pixel fonts everywhere.
+    t.font_family = BODY.into();
+    t.mono_font_family = MONO.into();
 }
 
 /// Re-apply our palette if the kit re-derived its theme (e.g. on window open
@@ -87,11 +122,11 @@ pub fn icon(name: gpui_kit::assets::IconName) -> Icon {
 
 /// Panel with border and rounded corners.
 pub fn card() -> Div {
-    div().bg(rgb(PANEL)).border_1().border_color(rgb(BORDER)).rounded(px(12.))
+    div().bg(rgb(PANEL)).border_2().border_color(rgb(BORDER)).shadow(pixel_shadow(4.))
 }
 
 pub fn section_title(text: impl Into<SharedString>) -> Div {
-    div().text_xs().font_weight(FontWeight::SEMIBOLD).text_color(rgb(MUTED)).child(text.into().to_uppercase())
+    div().text_xs().font_family(PIXEL).text_color(rgb(MUTED)).child(text.into().to_uppercase())
 }
 
 pub fn badge(text: impl Into<SharedString>, color: u32) -> Div {
@@ -99,12 +134,14 @@ pub fn badge(text: impl Into<SharedString>, color: u32) -> Div {
     div()
         .px(px(7.))
         .py(px(1.))
-        .rounded(px(6.))
+        
         .text_xs()
-        .font_weight(FontWeight::SEMIBOLD)
+        .font_family(PIXEL)
         .text_color(col)
         .bg(col.opacity(0.14))
-        .child(text.into())
+        .border_1()
+        .border_color(col.opacity(0.45))
+        .child(text.into().to_uppercase())
 }
 
 /// Pulsing "Live" pill for running games/servers.
@@ -115,15 +152,15 @@ pub fn live_badge() -> impl IntoElement {
         .gap(px(6.))
         .px(px(8.))
         .py(px(2.))
-        .rounded_full()
+        
         .bg(Hsla::from(rgb(0x0b1a12)).opacity(0.85))
         .border_1()
         .border_color(Hsla::from(rgb(ACCENT)).opacity(0.5))
         .text_xs()
-        .font_weight(FontWeight::BOLD)
+        .font_family(PIXEL)
         .text_color(rgb(ACCENT))
         .child(
-            div().size(px(7.)).rounded_full().bg(rgb(ACCENT)).with_animation(
+            div().size(px(7.)).bg(rgb(ACCENT)).with_animation(
                 "live-pulse",
                 Animation::new(std::time::Duration::from_millis(1400)).repeat().with_easing(pulsating_between(0.25, 1.0)),
                 |d, t| d.opacity(t),
@@ -132,15 +169,28 @@ pub fn live_badge() -> impl IntoElement {
         .child("LIVE")
 }
 
+/// Segmented, blocky progress bar.
 pub fn progress_bar(fraction: f32, indeterminate: bool) -> Div {
-    let w = if indeterminate { 0.35 } else { fraction.clamp(0.0, 1.0) };
+    const CELLS: usize = 24;
+    let filled = if indeterminate {
+        let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+        ((t / 120) as usize) % CELLS
+    } else {
+        (fraction.clamp(0.0, 1.0) * CELLS as f32).round() as usize
+    };
     div()
-        .h(px(6.))
+        .h(px(12.))
         .w_full()
-        .rounded_full()
-        .bg(rgb(PANEL_3))
-        .overflow_hidden()
-        .child(div().h_full().w(relative(w)).rounded_full().bg(rgb(ACCENT)))
+        .p(px(2.))
+        .bg(rgb(0x0a0c0f))
+        .border_2()
+        .border_color(rgb(BORDER))
+        .flex()
+        .gap(px(2.))
+        .children((0..CELLS).map(move |i| {
+            let on = if indeterminate { i == filled || i + 1 == filled || i + 2 == filled } else { i < filled };
+            div().flex_1().h_full().bg(if on { rgb(ACCENT) } else { rgb(PANEL_3) })
+        }))
 }
 
 /// Segmented control: a row of options, one selected.
@@ -155,9 +205,8 @@ pub fn segmented<T: Clone + PartialEq + 'static>(
         .flex()
         .gap(px(4.))
         .p(px(3.))
-        .rounded(px(10.))
         .bg(rgb(PANEL_2))
-        .border_1()
+        .border_2()
         .border_color(rgb(BORDER))
         .children(options.into_iter().enumerate().map(move |(i, (value, label))| {
             let active = &value == selected;
@@ -166,10 +215,11 @@ pub fn segmented<T: Clone + PartialEq + 'static>(
                 .id((id, i))
                 .px(px(12.))
                 .py(px(5.))
-                .rounded(px(7.))
-                .text_sm()
+                
+                .text_xs()
+                .font_family(PIXEL)
                 .cursor_pointer()
-                .when(active, |d| d.bg(rgb(PANEL_3)).text_color(rgb(TEXT)).font_weight(FontWeight::SEMIBOLD))
+                .when(active, |d| d.bg(rgb(ACCENT)).text_color(rgb(0x06210f)))
                 .when(!active, |d| d.text_color(rgb(MUTED)).hover(|s| s.text_color(rgb(TEXT))))
                 .child(label)
                 .on_click(move |_, window, cx| on_pick(value.clone(), window, cx))
@@ -180,24 +230,23 @@ pub fn segmented<T: Clone + PartialEq + 'static>(
 pub fn instance_tile(name: &str, loader: Loader, size: f32) -> Div {
     let col: Hsla = rgb(loader_color(loader)).into();
     let letter = name.chars().find(|c| c.is_alphanumeric()).unwrap_or('?').to_ascii_uppercase();
-    div()
+    let tile = div()
         .flex_none()
         .size(px(size))
-        .rounded(px(size * 0.24))
+
         .bg(linear_gradient(
             135.,
             linear_color_stop(col.opacity(0.95), 0.),
             linear_color_stop(col.opacity(0.45), 1.),
         ))
-        .border_1()
-        .border_color(col.opacity(0.6))
         .flex()
         .items_center()
         .justify_center()
         .text_color(rgb(0x0b0d10))
-        .font_weight(FontWeight::BOLD)
-        .text_size(px(size * 0.45))
-        .child(letter.to_string())
+        .font_family(PIXEL)
+        .text_size(px(size * 0.42))
+        .child(letter.to_string());
+    bevel(tile, 0.35, 0.3, (size / 16.).max(2.)).shadow(pixel_shadow(3.))
 }
 
 /// An 8×8 pixel-art face generated from the username (original art).
@@ -227,7 +276,7 @@ pub fn avatar(name: &str, size: f32) -> Div {
         }
         rows.push(div().flex().children(row));
     }
-    div().flex_none().rounded(px(size * 0.18)).overflow_hidden().flex().flex_col().children(rows)
+    div().flex_none().overflow_hidden().flex().flex_col().children(rows)
 }
 
 /// The Lodestone logo: a small 3×3 block mark.
@@ -236,7 +285,7 @@ pub fn logo(size: f32) -> Div {
     let s = size / 3.0;
     div()
         .flex_none()
-        .rounded(px(size * 0.2))
+        
         .overflow_hidden()
         .flex()
         .flex_col()

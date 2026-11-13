@@ -190,14 +190,14 @@ impl LodestoneApp {
                             .min_w_0()
                             .v_flex()
                             .gap(px(6.))
-                            .child(div().text_3xl().font_weight(FontWeight::BOLD).text_color(rgb(0xffffff)).truncate().child(inst.name.clone()))
+                            .child(div().text_3xl().font_family(PIXEL).text_color(rgb(0xffffff)).truncate().child(inst.name.to_uppercase()))
                             .child(
                                 div()
                                     .flex()
                                     .items_center()
                                     .gap(px(8.))
                                     .child(badge(format!("Minecraft {}", inst.mc_version), 0x9aa3b2))
-                                    .child(div().px(px(7.)).py(px(1.)).rounded(px(6.)).text_xs().font_weight(FontWeight::SEMIBOLD).text_color(col).bg(col.opacity(0.14)).child(inst.loader_label()))
+                                    .child(div().px(px(7.)).py(px(1.)).text_xs().font_family(PIXEL).text_color(col).bg(col.opacity(0.14)).border_1().border_color(col.opacity(0.45)).child(inst.loader_label().to_uppercase()))
                                     .when(is_server, |d| d.child(badge(if inst.server.online_mode { "Online mode" } else { "Offline mode" }, 0x9aa3b2)))
                                     .when(running, |d| d.child(live_badge()))
                                     ,
@@ -240,7 +240,7 @@ impl LodestoneApp {
                 d.child(
                     div()
                         .p(px(12.))
-                        .rounded(px(10.))
+                        
                         .border_1()
                         .border_color(Hsla::from(rgb(DANGER)).opacity(0.5))
                         .bg(Hsla::from(rgb(DANGER)).opacity(0.08))
@@ -262,7 +262,7 @@ impl LodestoneApp {
                         .items_center()
                         .gap(px(14.))
                         .text_sm()
-                        .child(div().size(px(8.)).rounded_full().bg(rgb(ACCENT)))
+                        .child(div().size(px(8.)).bg(rgb(ACCENT)))
                         .child(div().text_color(rgb(MUTED)).child("Join at"))
                         .child(div().font_family(MONO).child(local.clone()))
                         .child(small_button("copy-local", "Copy").on_click(cx.listener(move |this, _, _, cx| this.copy(local2.clone(), "Address", cx))))
@@ -338,7 +338,7 @@ impl LodestoneApp {
                             div()
                                 .size(px(32.))
                                 .flex_none()
-                                .rounded(px(8.))
+                                
                                 .bg(rgb(PANEL_3))
                                 .flex()
                                 .items_center()
@@ -429,7 +429,7 @@ impl LodestoneApp {
                             div()
                                 .m(px(12.))
                                 .py(px(14.))
-                                .rounded(px(10.))
+                                
                                 .border_2()
                                 .border_dashed()
                                 .border_color(rgb(BORDER))
@@ -520,7 +520,7 @@ impl LodestoneApp {
                             })),
                     ),
             )
-            .child(div().flex_1().min_h_0().rounded(px(12.)).bg(rgb(0x0a0c0f)).border_1().border_color(rgb(BORDER)).overflow_hidden().child(list))
+            .child(div().flex_1().min_h_0().bg(rgb(0x0a0c0f)).border_2().border_color(rgb(BORDER)).shadow(pixel_shadow(4.)).overflow_hidden().child(list))
             .when(is_server, |d| {
                 d.child(
                     div()

@@ -12,7 +12,8 @@ A native Minecraft launcher written in Rust with [GPUI](https://gpui.rs).
 - **Modrinth**: browse and install mods, resource packs and shaders (with dependencies),
   and `.mrpack` modpacks
 - **Server hosting** for vanilla and every loader, with a live console and commands
-- A unique pixel-art scene for every instance
+- Pixel-art look: a unique generated scene for every instance, pixel fonts, blocky UI
+- One-click updates from GitHub releases
 
 ## Using it
 
@@ -36,6 +37,9 @@ Get the latest build from **Releases**:
 | Windows (64-bit) | `Lodestone-windows-x64.exe` |
 | Linux (x86_64) | `Lodestone-linux-x64.tar.gz` |
 
+Lodestone checks for new releases on startup (and from **Settings → Updates**);
+click **Update** in the sidebar to install and relaunch.
+
 The macOS app isn't notarized; after unzipping run:
 
 ```sh
@@ -58,6 +62,14 @@ Command-line mode for testing: `lodestone --cli install 26.2 fabric 0.20.1`.
 |------|------|
 | `src/core` | Launcher engine: versions, libraries, assets, Java, loaders, Modrinth, servers, accounts |
 | `src/ui` | GPUI interface |
+
+## Credits
+
+- Fonts (SIL Open Font License 1.1, licenses in `assets/fonts/`):
+  [Silkscreen](https://github.com/googlefonts/silkscreen) (titles),
+  [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) (text),
+  [VT323](https://fonts.google.com/specimen/VT323) (console)
+- Icons: [Lucide](https://lucide.dev), ISC License (via gpui-kit)
 
 ## License
 

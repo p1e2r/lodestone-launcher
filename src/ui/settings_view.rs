@@ -63,6 +63,39 @@ impl LodestoneApp {
         cx.notify();
     }
 
+    fn updates_card(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        use super::UpdateState;
+        let auto = self.settings.check_updates;
+        let status: (String, u32) = match &self.update {
+            UpdateState::Idle => ("Not checked yet".into(), MUTED),
+            UpdateState::Checking => ("Checking…".into(), MUTED),
+            UpdateState::UpToDate => ("You're on the latest version".into(), ACCENT),
+            UpdateState::Available(r) => (format!("Lodestone {} is available", r.version()), ACCENT),
+            UpdateState::Installing(r) => (format!("Installing {}…", r.version()), ACCENT),
+            UpdateState::Failed(e) => (e.clone(), DANGER),
+        };
+        let available = matches!(self.update, UpdateState::Available(_));
+        card()
+            .p(px(18.))
+            .v_flex()
+            .gap(px(12.))
+            .child(section_title("Updates"))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(12.))
+                    .child(div().flex_1().v_flex().gap(px(2.)).child(div().text_sm().child(format!("Lodestone {}", crate::core::update::CURRENT))).child(div().text_xs().text_color(rgb(status.1)).child(status.0)))
+                    .when(available, |d| d.child(Button::new("settings-update").primary().icon(I::Download).label("Update now").on_click(cx.listener(|this, _, _, cx| this.install_update(cx)))))
+                    .child(Button::new("check-updates").icon(I::RefreshCw).label("Check for updates").on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx)))),
+            )
+            .child(Switch::new("auto-updates").checked(auto).label("Check for updates when Lodestone starts").on_click(cx.listener(|this, v: &bool, _, cx| {
+                this.settings.check_updates = *v;
+                this.settings.save();
+                cx.notify();
+            })))
+    }
+
     pub fn settings_view(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let i = &self.settings_inputs;
         let total = total_memory_mb();
@@ -122,6 +155,7 @@ impl LodestoneApp {
                                 }))),
                         )
                         .child(div().flex().justify_end().child(Button::new("save-settings").primary().icon(I::Check).label("Save settings").on_click(cx.listener(|this, _, _, cx| this.save_settings(cx)))))
+                        .child(self.updates_card(cx))
                         .child(
                             card()
                                 .p(px(18.))

@@ -23,6 +23,7 @@ fn main() {
 
     gpui_kit::application().with_assets(gpui_kit::assets::AllAssets).run(|cx: &mut App| {
         gpui_kit::init(cx);
+        ui::theme::register_fonts(cx);
         ui::theme::apply(cx);
         let bounds = Bounds::centered(None, size(px(1220.), px(800.)), cx);
         let options = WindowOptions {

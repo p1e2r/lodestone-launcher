@@ -10,4 +10,5 @@ pub mod paths;
 pub mod rules;
 pub mod session;
 pub mod settings;
+pub mod update;
 pub mod versions;

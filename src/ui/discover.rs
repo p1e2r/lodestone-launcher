@@ -170,7 +170,7 @@ impl LodestoneApp {
                     .id("t-none")
                     .px(px(10.))
                     .py(px(4.))
-                    .rounded(px(8.))
+                    
                     .text_xs()
                     .cursor_pointer()
                     .border_1()
@@ -192,14 +192,14 @@ impl LodestoneApp {
                     .gap(px(6.))
                     .px(px(10.))
                     .py(px(4.))
-                    .rounded(px(8.))
+                    
                     .text_xs()
                     .cursor_pointer()
                     .border_1()
                     .border_color(if active { rgb(col) } else { rgb(BORDER) })
                     .when(active, |d| d.bg(rgb(PANEL_3)).text_color(rgb(TEXT)))
                     .when(!active, |d| d.text_color(rgb(MUTED)))
-                    .child(div().size(px(7.)).rounded_full().bg(rgb(col)))
+                    .child(div().size(px(7.)).bg(rgb(col)))
                     .child(label)
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.discover.target = Some(id.clone());
@@ -242,8 +242,8 @@ impl LodestoneApp {
                     .flex()
                     .gap(px(14.))
                     .child(match icon_path {
-                        Some(p) => img(p).size(px(56.)).flex_none().rounded(px(12.)).into_any_element(),
-                        None => div().size(px(56.)).flex_none().rounded(px(12.)).bg(rgb(PANEL_3)).flex().items_center().justify_center().child(icon(I::Package).text_color(rgb(FAINT))).into_any_element(),
+                        Some(p) => img(p).size(px(56.)).flex_none().into_any_element(),
+                        None => div().size(px(56.)).flex_none().bg(rgb(PANEL_3)).flex().items_center().justify_center().child(icon(I::Package).text_color(rgb(FAINT))).into_any_element(),
                     })
                     .child(
                         div()
