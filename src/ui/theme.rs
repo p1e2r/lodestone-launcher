@@ -8,6 +8,8 @@ use crate::core::loaders::Loader;
 
 pub const BG: u32 = 0x0e1014;
 pub const PANEL: u32 = 0x15181e;
+/// Flat sidebar color (the sidebar scene is drawn on top of it).
+pub const SIDEBAR: u32 = 0x14171c;
 pub const PANEL_2: u32 = 0x1b1f27;
 pub const PANEL_3: u32 = 0x232833;
 pub const BORDER: u32 = 0x272c37;

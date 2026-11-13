@@ -12,7 +12,7 @@ pub const W: u32 = 960;
 pub const H: u32 = 320;
 const B: u32 = 16; // block size in pixels
 const T: u32 = 4; // texel size (4×4 texels per block)
-const VERSION: u32 = 5; // bump to regenerate cached banners
+const VERSION: u32 = 6; // bump to regenerate cached banners
 
 struct Rng(u64);
 impl Rng {
@@ -367,120 +367,115 @@ pub fn logo() -> PathBuf {
     path
 }
 
-/// Decorative strip for the bottom of the sidebar: stars fading into a
-/// blocky hillside (grass, dirt, stone with ores), a tree and flowers.
-/// Transparent at the top so it blends into the sidebar.
-pub fn sidebar_scene() -> PathBuf {
-    let path = paths().cache().join("banners").join(format!("sidebar-v{VERSION}.png"));
-    if path.exists() {
-        return path;
-    }
-    const SW: u32 = 232;
-    const SH: u32 = 240;
-    const BS: i32 = 8; // block
-    const TS: i32 = 2; // texel
-    let mut img = image::RgbaImage::new(SW, SH);
-    let mut rng = Rng::new("lodestone-sidebar");
-    let put = |img: &mut image::RgbaImage, x: i32, y: i32, w: i32, h: i32, c: [f32; 3], a: u8| {
-        for yy in y.max(0)..(y + h).min(SH as i32) {
-            for xx in x.max(0)..(x + w).min(SW as i32) {
-                let p = px(c).0;
-                img.put_pixel(xx as u32, yy as u32, image::Rgba([p[0], p[1], p[2], a]));
-            }
+/// One solid rectangle of the sidebar scene, in logical pixels.
+#[derive(Clone, Copy)]
+pub struct Rect {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub color: u32,
+}
+
+pub const SIDEBAR_W: f32 = 232.0;
+pub const SIDEBAR_H: f32 = 240.0;
+
+fn to_u32(c: [f32; 3]) -> u32 {
+    let p = px(c).0;
+    ((p[0] as u32) << 16) | ((p[1] as u32) << 8) | p[2] as u32
+}
+
+/// Decorative scene for the bottom of the sidebar: stars, a hill silhouette,
+/// grass/dirt/stone blocks with ores, a tree, flowers and a torch.
+///
+/// Drawn as plain colored rectangles (not an image) so its colors go through
+/// exactly the same pipeline as the rest of the UI and match the sidebar.
+pub fn sidebar_rects() -> &'static [Rect] {
+    static RECTS: std::sync::OnceLock<Vec<Rect>> = std::sync::OnceLock::new();
+    RECTS.get_or_init(|| {
+        const BS: f32 = 8.0; // block size
+        let mut out: Vec<Rect> = Vec::new();
+        let mut rng = Rng::new("lodestone-sidebar");
+        let mut rect = |x: f32, y: f32, w: f32, h: f32, c: [f32; 3]| out.push(Rect { x, y, w, h, color: to_u32(c) });
+        let cols = (SIDEBAR_W / BS) as i32 + 1;
+        let rows = (SIDEBAR_H / BS) as i32;
+        let bg = hex(super::theme::SIDEBAR);
+
+        // Stars, dimmer towards the top.
+        for _ in 0..26 {
+            let (x, y) = (rng.range(0, SIDEBAR_W as i32) as f32, rng.range(6, (SIDEBAR_H * 0.42) as i32) as f32);
+            let fade = (0.25 + y / (SIDEBAR_H * 0.42) * 0.6).min(0.85);
+            let s = if rng.f() < 0.2 { 3.0 } else { 2.0 };
+            let star = if rng.f() < 0.3 { hex(0xfff3c4) } else { hex(0xcfd8ff) };
+            rect(x, y, s, s, mix(bg, star, fade));
         }
-    };
-    let block = |img: &mut image::RgbaImage, rng: &mut Rng, bx: i32, by: i32, c: [f32; 3], top: Option<[f32; 3]>| {
-        for ty in 0..BS / TS {
-            for tx in 0..BS / TS {
-                let base = match top {
-                    Some(t) if ty == 0 || (ty == 1 && rng.f() < 0.4) => t,
-                    _ => c,
-                };
-                let k = 0.88 + rng.f() * 0.22;
-                put(img, bx * BS + tx * TS, by * BS + ty * TS, TS, TS, shade(base, k), 255);
-            }
+        // Hill silhouette.
+        let far = heightmap(&mut rng, cols, rows as f32 * 0.42, 1.6, 0.35);
+        for x in 0..cols {
+            let top = far[x as usize] as f32 * BS;
+            rect(x as f32 * BS, top, BS, SIDEBAR_H - top, hex(0x1c2230));
         }
-    };
-    let cols = SW as i32 / BS + 1;
-    let rows = SH as i32 / BS;
-    // Stars in the upper part, fading out towards the top.
-    for _ in 0..26 {
-        let (x, y) = (rng.range(0, SW as i32), rng.range(6, (SH as f32 * 0.42) as i32));
-        let a = (50.0 + y as f32 * 1.8).min(220.0) as u8;
-        let s = if rng.f() < 0.2 { 3 } else { 2 };
-        put(&mut img, x, y, s, s, hex(if rng.f() < 0.3 { 0xfff3c4 } else { 0xcfd8ff }), a);
-    }
-    // Distant hill silhouette.
-    let far = heightmap(&mut rng, cols, rows as f32 * 0.42, 1.6, 0.35);
-    for x in 0..cols {
-        for y in far[x as usize]..rows {
-            put(&mut img, x * BS, y * BS, BS, BS, hex(0x1c2230), 255);
-        }
-    }
-    // Near terrain.
-    let near = heightmap(&mut rng, cols, rows as f32 * 0.55, 1.4, 0.42);
-    for x in 0..cols {
-        let t = near[x as usize];
-        for y in t..rows {
-            let d = y - t;
-            if d == 0 {
-                block(&mut img, &mut rng, x, y, hex(0x6b4a2c), Some(hex(0x4f9a33)));
-            } else if d <= 2 {
-                block(&mut img, &mut rng, x, y, hex(0x6b4a2c), None);
-            } else {
-                block(&mut img, &mut rng, x, y, hex(0x5a5f68), None);
-                if rng.f() < 0.12 {
+        // Terrain: one rect per block, plus a grass cap and a few texture specks.
+        let near = heightmap(&mut rng, cols, rows as f32 * 0.55, 1.4, 0.42);
+        for x in 0..cols {
+            let t = near[x as usize];
+            for y in t..rows {
+                let (bx, by) = (x as f32 * BS, y as f32 * BS);
+                let d = y - t;
+                let base = if d <= 2 { hex(0x6b4a2c) } else { hex(0x5a5f68) };
+                rect(bx, by, BS, BS, shade(base, 0.92 + rng.f() * 0.14));
+                // Texture specks (lighter / darker 2×2 texels).
+                for _ in 0..2 {
+                    let k = if rng.f() < 0.5 { 0.82 } else { 1.15 };
+                    rect(bx + rng.range(0, 3) as f32 * 2.0, by + rng.range(0, 3) as f32 * 2.0, 2.0, 2.0, shade(base, k));
+                }
+                if d == 0 {
+                    rect(bx, by, BS, 2.0, hex(0x4f9a33));
+                    for i in 0..4 {
+                        if rng.f() < 0.45 {
+                            rect(bx + i as f32 * 2.0, by + 2.0, 2.0, 2.0, hex(0x468a2d));
+                        }
+                    }
+                } else if d > 2 && rng.f() < 0.12 {
                     let ore = if rng.f() < 0.4 { hex(0x3ddc84) } else { hex(0x24262b) };
-                    put(&mut img, x * BS + 2, y * BS + 2, 2, 2, ore, 255);
-                    put(&mut img, x * BS + 4, y * BS + 4, 2, 2, ore, 255);
+                    rect(bx + 2.0, by + 2.0, 2.0, 2.0, ore);
+                    rect(bx + 4.0, by + 4.0, 2.0, 2.0, ore);
                 }
             }
         }
-    }
-    // A tree and some flowers.
-    let tx = rng.range(cols / 2, cols - 4);
-    let tt = near[tx as usize];
-    for i in 1..=3 {
-        block(&mut img, &mut rng, tx, tt - i, hex(0x6b4f2a), None);
-    }
-    for (dx, dy) in [(-1, -4), (0, -4), (1, -4), (-2, -5), (-1, -5), (0, -5), (1, -5), (2, -5), (-1, -6), (0, -6), (1, -6), (0, -7)] {
-        block(&mut img, &mut rng, tx + dx, tt + dy, hex(0x3e8a2e), None);
-    }
-    for _ in 0..5 {
-        let fx = rng.range(1, cols - 2);
-        if (fx - tx).abs() < 3 {
-            continue;
+        // Tree.
+        let tx = rng.range(cols / 2, cols - 4);
+        let tt = near[tx as usize];
+        for i in 1..=3 {
+            rect(tx as f32 * BS, (tt - i) as f32 * BS, BS, BS, shade(hex(0x6b4f2a), 0.92 + rng.f() * 0.14));
         }
-        let ft = near[fx as usize];
-        let col = [hex(0xe84a5f), hex(0xf7d154), hex(0x9b7bdc)][rng.range(0, 2) as usize];
-        put(&mut img, fx * BS + 3, ft * BS - 5, 2, 5, hex(0x3e8a2e), 255);
-        put(&mut img, fx * BS + 2, ft * BS - 8, 4, 3, col, 255);
-    }
-    // Torch glow on the left.
-    let gx = rng.range(1, cols / 3);
-    let gt = near[gx as usize];
-    put(&mut img, gx * BS + 3, gt * BS - 9, 2, 9, hex(0x7a5a33), 255);
-    put(&mut img, gx * BS + 2, gt * BS - 12, 4, 4, hex(0xffc94a), 255);
-    for r in [10, 6] {
-        for yy in -r..=r {
-            for xx in -r..=r {
-                let (x, y) = (gx * BS + 4 + xx, gt * BS - 10 + yy);
-                if x < 0 || y < 0 || x >= SW as i32 || y >= SH as i32 || xx * xx + yy * yy > r * r {
-                    continue;
-                }
-                let p = img.get_pixel(x as u32, y as u32).0;
-                if p[3] == 0 {
-                    img.put_pixel(x as u32, y as u32, image::Rgba([255, 200, 90, 18]));
-                }
+        for (dx, dy) in [(-1, -4), (0, -4), (1, -4), (-2, -5), (-1, -5), (0, -5), (1, -5), (2, -5), (-1, -6), (0, -6), (1, -6), (0, -7)] {
+            rect((tx + dx) as f32 * BS, (tt + dy) as f32 * BS, BS, BS, shade(hex(0x3e8a2e), 0.88 + rng.f() * 0.2));
+        }
+        // Flowers.
+        for _ in 0..5 {
+            let fx = rng.range(1, cols - 2);
+            if (fx - tx).abs() < 3 {
+                continue;
             }
+            let ft = near[fx as usize] as f32 * BS;
+            let col = [hex(0xe84a5f), hex(0xf7d154), hex(0x9b7bdc)][rng.range(0, 2) as usize];
+            rect(fx as f32 * BS + 3.0, ft - 5.0, 2.0, 5.0, hex(0x3e8a2e));
+            rect(fx as f32 * BS + 2.0, ft - 8.0, 4.0, 3.0, col);
         }
-    }
-    let img = image::imageops::resize(&img, SW * 2, SH * 2, image::imageops::FilterType::Nearest);
-    if let Some(p) = path.parent() {
-        let _ = std::fs::create_dir_all(p);
-    }
-    let _ = img.save(&path);
-    path
+        // Torch.
+        let gx = rng.range(1, cols / 3);
+        let gt = near[gx as usize] as f32 * BS;
+        rect(gx as f32 * BS + 3.0, gt - 9.0, 2.0, 9.0, hex(0x7a5a33));
+        rect(gx as f32 * BS + 2.0, gt - 12.0, 4.0, 4.0, hex(0xffc94a));
+        // Clip to the scene box.
+        out.retain(|r| r.x < SIDEBAR_W && r.y < SIDEBAR_H);
+        for r in out.iter_mut() {
+            r.w = r.w.min(SIDEBAR_W - r.x);
+            r.h = r.h.min(SIDEBAR_H - r.y);
+        }
+        out
+    })
 }
 
 /// The 16×16 Lodestone block as RGB cells.

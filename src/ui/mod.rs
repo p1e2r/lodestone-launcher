@@ -541,7 +541,7 @@ impl LodestoneApp {
             .w(px(232.))
             .flex_none()
             .h_full()
-            .bg(linear_gradient(180., linear_color_stop(rgb(0x171b22), 0.), linear_color_stop(rgb(0x121519), 1.)))
+            .bg(rgb(SIDEBAR))
             .border_r_1()
             .border_color(rgb(BORDER))
             .flex()
@@ -551,7 +551,17 @@ impl LodestoneApp {
             .relative()
             .overflow_hidden()
             // Pixel landscape along the bottom, behind the account card.
-            .child(div().absolute().bottom_0().left_0().w(px(232.)).h(px(240.)).child(img(art::sidebar_scene()).size_full()))
+            .child(
+                div()
+                    .absolute()
+                    .bottom_0()
+                    .left_0()
+                    .w(px(art::SIDEBAR_W))
+                    .h(px(art::SIDEBAR_H))
+                    .children(art::sidebar_rects().iter().map(|r| {
+                        div().absolute().left(px(r.x)).top(px(r.y)).w(px(r.w)).h(px(r.h)).bg(rgb(r.color))
+                    })),
+            )
             .child(
                 div()
                     .flex()
