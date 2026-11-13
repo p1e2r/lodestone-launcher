@@ -297,6 +297,78 @@ pub fn remove_project(inst: &Instance, project_id: &str) -> Result<()> {
     index.save(inst)
 }
 
+// ------------------------------------------------------------------ identify existing files
+
+/// Identify files already in an instance (from a modpack, dropped in by
+/// hand, …) by their SHA-1 on Modrinth, and record them as installed so
+/// Discover shows them as "Installed". Returns how many were identified.
+pub async fn sync_installed(inst: &Instance) -> Result<usize> {
+    let mut index = InstalledIndex::load(inst);
+    let known: HashSet<(String, String)> = index.projects.values().map(|p| (p.folder.clone(), p.file.clone())).collect();
+
+    // Hash files we don't know yet.
+    let mut pending: Vec<(String, String, PathBuf)> = Vec::new(); // (folder, file name, path)
+    for folder in ["mods", "resourcepacks", "shaderpacks"] {
+        for f in inst.list_content(folder) {
+            if !known.contains(&(folder.to_string(), f.display.clone())) {
+                pending.push((folder.to_string(), f.display.clone(), f.path.clone()));
+            }
+        }
+    }
+    if pending.is_empty() {
+        return Ok(0);
+    }
+    let hashed: Vec<(String, String, String)> = tokio::task::spawn_blocking(move || {
+        pending
+            .into_iter()
+            .filter_map(|(folder, name, path)| net::sha1_file(&path).ok().map(|h| (folder, name, h)))
+            .collect()
+    })
+    .await?;
+
+    // Ask Modrinth which versions those hashes belong to (one request).
+    let hashes: Vec<&str> = hashed.iter().map(|(_, _, h)| h.as_str()).collect();
+    let resp = HTTP
+        .post(format!("{API}/version_files"))
+        .json(&serde_json::json!({ "hashes": hashes, "algorithm": "sha1" }))
+        .send()
+        .await?
+        .error_for_status()?;
+    let found: HashMap<String, MVersion> = resp.json().await?;
+    if found.is_empty() {
+        return Ok(0);
+    }
+
+    // Project titles (one request).
+    let ids: Vec<String> = found.values().map(|v| v.project_id.clone()).collect::<HashSet<_>>().into_iter().collect();
+    let projects: Vec<Project> = HTTP
+        .get(format!("{API}/projects"))
+        .query(&[("ids", serde_json::to_string(&ids)?)])
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    let titles: HashMap<String, String> = projects.into_iter().map(|p| (p.id, p.title)).collect();
+
+    let mut added = 0;
+    for (folder, name, hash) in hashed {
+        let Some(v) = found.get(&hash) else { continue };
+        index.projects.insert(
+            v.project_id.clone(),
+            InstalledProject {
+                title: titles.get(&v.project_id).cloned().unwrap_or_else(|| name.clone()),
+                file: name,
+                folder,
+                version: v.version_number.clone(),
+            },
+        );
+        added += 1;
+    }
+    index.save(inst)?;
+    Ok(added)
+}
+
 // ------------------------------------------------------------------ .mrpack
 
 #[derive(Deserialize)]
@@ -416,6 +488,11 @@ pub async fn install_mrpack(path: &Path, kind: Kind, source: Option<String>, rep
                 std::io::copy(&mut entry, &mut out)?;
             }
         }
+    }
+    rep.stage("Identifying the modpack's mods");
+    match sync_installed(&inst).await {
+        Ok(n) => rep.info(format!("Recognised {n} mods/packs from Modrinth")),
+        Err(e) => rep.warn(format!("Couldn't identify the modpack's mods: {e:#}")),
     }
     rep.info(format!("Created instance “{}” ({} {})", inst.name, mc, loader.name()));
     Ok(inst)

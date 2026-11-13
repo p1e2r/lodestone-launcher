@@ -61,7 +61,16 @@ impl LodestoneApp {
         self.discover.searched = true;
         self.discover.generation += 1;
         let generation = self.discover.generation;
-        self.bg(cx, async move { modrinth::search(&q, ct, target.as_ref(), offset).await.map_err(|e| format!("{e:#}")) }, move |this, r, cx| {
+        self.bg(cx, async move {
+            // Recognise mods already in the target (from a modpack or dropped in) first,
+            // so they show as "Installed".
+            if let Some(inst) = &target {
+                if offset == 0 {
+                    let _ = modrinth::sync_installed(inst).await;
+                }
+            }
+            modrinth::search(&q, ct, target.as_ref(), offset).await.map_err(|e| format!("{e:#}"))
+        }, move |this, r, cx| {
             if this.discover.generation != generation {
                 return;
             }
