@@ -1,0 +1,71 @@
+name: winget
+
+# Sends Lodestone to the Windows Package Manager (winget):
+#   winget install lodestone
+# The first run opens the "new package" pull request on microsoft/winget-pkgs;
+# later runs open an update pull request for the new version.
+# Runs automatically after each release, or by hand from the Actions tab.
+#
+# Needs a WINGET_TOKEN repository secret: a classic personal access token
+# with the public_repo scope, so wingetcreate can fork winget-pkgs and open
+# the pull request under your account.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to submit, e.g. 0.1.10 (default: latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Submit to winget
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if (-not $env:WINGET_TOKEN) {
+            Write-Host "::error::Add a WINGET_TOKEN secret (classic token, public_repo scope) under Settings -> Secrets and variables -> Actions."
+            exit 1
+          }
+
+          $version = $env:INPUT_VERSION
+          if (-not $version) { $version = gh release view --repo $env:GITHUB_REPOSITORY --json tagName -q .tagName }
+          $version = $version.TrimStart('v')
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$version/Lodestone-windows-x64-setup.exe"
+          Write-Host "Submitting Lodestone $version ($url)"
+
+          Invoke-WebRequest -Uri https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+          # Is Lodestone already in winget?
+          $exists = $true
+          try {
+            Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/p/p1e2r/Lodestone" -Headers @{ Authorization = "Bearer $env:GH_TOKEN" } | Out-Null
+          } catch { $exists = $false }
+
+          if ($exists) {
+            .\wingetcreate.exe update p1e2r.Lodestone --version $version --urls $url --submit --no-open --token $env:WINGET_TOKEN
+          } else {
+            # First submission: fill in the manifest kept in packaging/winget.
+            Invoke-WebRequest -Uri $url -OutFile setup.exe
+            $sha = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+            $date = gh release view "v$version" --repo $env:GITHUB_REPOSITORY --json publishedAt -q '.publishedAt[0:10]'
+            $out = "manifests/p/p1e2r/Lodestone/$version"
+            New-Item -ItemType Directory -Force -Path $out | Out-Null
+            Get-ChildItem packaging/winget/*.yaml | ForEach-Object {
+              (Get-Content $_.FullName -Raw).Replace('{VERSION}', $version).Replace('{URL}', $url).Replace('{SHA256}', $sha).Replace('{DATE}', $date) |
+                Set-Content -Path (Join-Path $out $_.Name) -NoNewline -Encoding utf8
+            }
+            Get-ChildItem $out | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName }
+            .\wingetcreate.exe submit --prtitle "New package: p1e2r.Lodestone version $version" --no-open --token $env:WINGET_TOKEN $out
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
