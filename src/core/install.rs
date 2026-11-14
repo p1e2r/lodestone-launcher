@@ -6,6 +6,8 @@
 //!   per-user (HKCU), the same place the installer uses.
 //! - macOS: `~/Applications/Lodestone.app` (Spotlight indexes it; no admin).
 //!   An app already in `/Applications` is left where it is.
+//! - Linux: `~/.local/opt/lodestone/lodestone`, plus an app-menu entry in
+//!   `~/.local/share/applications/lodestone.desktop` with the icon.
 //!
 //! User data lives in the OS app-data folder, so moving the app never touches
 //! instances, worlds, accounts or settings.
@@ -26,6 +28,9 @@ pub fn install_location() -> Option<PathBuf> {
     } else if cfg!(target_os = "macos") {
         let home = std::env::var_os("HOME")?;
         Some(PathBuf::from(home).join("Applications").join("Lodestone.app"))
+    } else if cfg!(target_os = "linux") {
+        let home = std::env::var_os("HOME")?;
+        Some(PathBuf::from(home).join(".local").join("opt").join("lodestone").join("lodestone"))
     } else {
         None
     }
@@ -61,6 +66,11 @@ pub fn ensure_installed() -> Result<bool> {
     let Some(target) = install_location() else { return Ok(false) };
     let current = super::update::install_target()?;
     if already_installed(&current, &target) {
+        // Restore a missing app-menu entry (e.g. unpacked by hand into the install folder).
+        #[cfg(target_os = "linux")]
+        if !linux::desktop_file().map(|p| p.exists()).unwrap_or(true) {
+            let _ = register(&target);
+        }
         return Ok(false);
     }
     install_to(&current, &target)?;
@@ -100,9 +110,58 @@ fn install_to(current: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+#[cfg(target_os = "linux")]
+fn install_to(current: &Path, target: &Path) -> Result<()> {
+    linux::copy_executable(current, target)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
 fn install_to(_current: &Path, _target: &Path) -> Result<()> {
     Ok(())
+}
+
+#[cfg(target_os = "linux")]
+mod linux {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    pub const ICON: &[u8] = include_bytes!("../../assets/icon.png");
+
+    pub fn desktop_file() -> Option<PathBuf> {
+        let base = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))?;
+        Some(base.join("applications").join("lodestone.desktop"))
+    }
+
+    /// Copy the running binary to `target` (staged, then renamed), executable.
+    pub fn copy_executable(current: &Path, target: &Path) -> Result<()> {
+        std::fs::create_dir_all(target.parent().unwrap())?;
+        let staged = target.with_extension("new");
+        std::fs::copy(current, &staged)?;
+        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))?;
+        std::fs::rename(&staged, target)?;
+        Ok(())
+    }
+
+    /// The `.desktop` entry that puts Lodestone in the app menu.
+    pub fn desktop_entry(exe: &Path, icon: &Path) -> String {
+        let q = |p: &Path| p.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
+        format!(
+            "[Desktop Entry]\nType=Application\nName=Lodestone\nGenericName=Minecraft Launcher\nComment=Play Minecraft with any version and mod loader\nExec=\"{}\"\nIcon={}\nTerminal=false\nCategories=Game;\nKeywords=minecraft;launcher;mods;\nStartupWMClass=dev.p1e2r.lodestone\n",
+            q(exe),
+            icon.to_string_lossy()
+        )
+    }
+
+    /// Write the icon next to the app and the app-menu entry.
+    pub fn write_menu_entry(exe: &Path, desktop: &Path) -> Result<()> {
+        let icon = exe.parent().unwrap().join("lodestone.png");
+        std::fs::write(&icon, ICON)?;
+        std::fs::create_dir_all(desktop.parent().unwrap())?;
+        std::fs::write(desktop, desktop_entry(exe, &icon))?;
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -143,7 +202,18 @@ fn register(target: &Path) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
+/// App-menu entry with the icon (no admin).
+#[cfg(target_os = "linux")]
+fn register(target: &Path) -> Result<()> {
+    let desktop = linux::desktop_file().ok_or_else(|| anyhow!("no home folder"))?;
+    linux::write_menu_entry(target, &desktop)?;
+    if let Some(dir) = desktop.parent() {
+        let _ = std::process::Command::new("update-desktop-database").arg(dir).status();
+    }
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn register(_target: &Path) -> Result<()> {
     Ok(())
 }
@@ -214,8 +284,28 @@ mod tests {
     fn location_is_per_user() {
         if let Some(p) = install_location() {
             let s = p.to_string_lossy();
-            assert!(s.contains("Programs") || s.contains("Applications"));
+            assert!(s.contains("Programs") || s.contains("Applications") || s.contains(".local/opt"));
         }
         assert!(already_installed(Path::new("/a/b"), Path::new("/a/b")));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_self_install() {
+        let tmp = std::env::temp_dir().join(format!("lodestone-install-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let src = tmp.join("Downloads").join("lodestone");
+        std::fs::create_dir_all(src.parent().unwrap()).unwrap();
+        std::fs::write(&src, b"binary").unwrap();
+        let target = tmp.join("home").join(".local/opt/lodestone/lodestone");
+        install_to(&src, &target).unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o755);
+        let desktop = tmp.join("home/.local/share/applications/lodestone.desktop");
+        linux::write_menu_entry(&target, &desktop).unwrap();
+        let entry = std::fs::read_to_string(&desktop).unwrap();
+        assert!(entry.contains(&format!("Exec=\"{}\"", target.display())));
+        assert!(entry.contains("Icon=") && target.parent().unwrap().join("lodestone.png").exists());
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

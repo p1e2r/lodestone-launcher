@@ -57,7 +57,7 @@
   <div class="wrap">
     <div class="crumbs"><a href="../">Home</a> <span aria-hidden="true">/</span> <a href="./">Install guide</a> <span aria-hidden="true">/</span> <span aria-current="page">macOS</span></div>
     <h1>Install on macOS</h1>
-    <p class="lede">There are two builds: arm64 for Apple Silicon Macs and x86_64 for Intel Macs. Pick the one for your chip, then allow it to open once.</p>
+    <p class="lede">Run one command and Lodestone installs the right build for your Mac. Or download the arm64 (Apple Silicon) or x86_64 (Intel) disk image yourself.</p>
     <div class="dlpanel">
   <div class="dlbox" data-mac="arm">
     <h2>Apple Silicon · arm64</h2>
@@ -78,9 +78,9 @@
 </section>
 <div class="wrap guide">
 <nav class="toc" aria-label="On this page"><p>ON THIS PAGE</p>
+  <a href="#quick">One-command install</a>
   <a href="#chip">Which Mac do I have?</a>
-  <a href="#install">Install</a>
-  <a href="#open">Allow it to open</a>
+  <a href="#install">Install from the .dmg</a>
   <a href="#noadmin">Without admin rights</a>
   <a href="#update">Updating</a>
   <a href="#files">Where files go</a>
@@ -91,34 +91,31 @@
   <a href="linux.html">Linux</a>
 </nav>
 <div class="guide-body">
+<section id="quick"><h2>One-command install</h2>
+<p>The easiest way. Open <strong>Terminal</strong> (press <kbd>⌘</kbd> <kbd>Space</kbd>, type <em>Terminal</em>, press Return), paste this and press Return:</p>
+<div class="cmd"><code id="cmd-2">curl -fsSL https://p1e2r.github.io/lodestone-launcher/install.sh | sh</code><button type="button" data-copy="cmd-2"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<p>It picks the build for your chip (Apple Silicon or Intel), installs Lodestone into Applications and opens it. macOS doesn't block it, because it wasn't downloaded by a browser. Run it again any time to reinstall.</p>
+</section>
 <section id="chip"><h2>Which Mac do I have?</h2>
 <p>Open the Apple menu → <strong>About This Mac</strong> and look at the first line.</p>
 <div class="chipcheck">
   <div><h3>“Chip: Apple M1” (or M2, M3, M4…)</h3><p>You have Apple Silicon. Download the <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-arm64.dmg"><strong>arm64</strong></a> build.</p></div>
   <div><h3>“Processor: … Intel Core …”</h3><p>You have an Intel Mac. Download the <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-intel.dmg"><strong>Intel (x86_64)</strong></a> build.</p></div>
 </div>
-<p>Or run this in Terminal: it prints <code>arm64</code> on Apple Silicon and <code>x86_64</code> on Intel.</p>
-<div class="cmd"><code id="cmd-1">uname -m</code><button type="button" data-copy="cmd-1"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 <p class="note">The Intel build also runs on Apple Silicon through Rosetta 2, but slower. The arm64 build does not run on Intel Macs.</p>
 </section>
-<section id="install"><h2>Install</h2>
+<section id="install"><h2>Install from the .dmg</h2>
+<p>Installing by hand works too, with one Terminal command at the end.</p>
 <ol class="steps">
   <li><div><h3>Open the disk image</h3><p>Double-click the file you downloaded: <code>Lodestone-macos-arm64.dmg</code> on Apple Silicon or <code>Lodestone-macos-intel.dmg</code> on Intel.</p></div></li>
   <li><div><h3>Drag Lodestone to Applications</h3><p>In the window that opens, drag the Lodestone icon onto the <strong>Applications</strong> folder. Then eject the disk image with the ⏏ button next to it in the Finder sidebar.</p></div></li>
-  <li><div><h3>Allow it to open</h3><p>Lodestone isn't notarized by Apple yet, so macOS blocks it the first time. Paste this into Terminal (Applications → Utilities → Terminal) and press Return:</p><div class="cmd"><code id="cmd-2">xattr -dr com.apple.quarantine /Applications/Lodestone.app</code><button type="button" data-copy="cmd-2"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div><p>This removes the “downloaded from the internet” flag from Lodestone only. There's also a way without Terminal, <a href="#open">described below</a>.</p></div></li>
+  <li><div><h3>Allow it to open</h3><p>Lodestone isn't notarized by Apple yet, so macOS says it's “damaged” when it comes from a browser. Paste this into Terminal (Applications → Utilities → Terminal) and press Return:</p><div class="cmd"><code id="cmd-3">xattr -dr com.apple.quarantine /Applications/Lodestone.app</code><button type="button" data-copy="cmd-3"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div><p>This removes the “downloaded from the internet” flag from Lodestone only. The one-command install above skips this step.</p></div></li>
   <li><div><h3>Play</h3><p>Open Lodestone from Applications, Launchpad or Spotlight. Click your name at the bottom of the sidebar (or open <strong>Accounts</strong>) and add a username. Then click <strong>New instance</strong>, pick a Minecraft version and a mod loader, and press <strong>Play</strong>. The first launch of each version downloads the game and the right Java, a few hundred MB.</p></div></li>
 </ol>
 </section>
-<section id="open"><h2>Allow it to open without Terminal</h2>
-<ol class="steps">
-  <li><div><h3>Try to open Lodestone</h3><p>Double-click Lodestone in Applications. macOS says it can't verify the app; click <strong>Done</strong> (or <strong>Cancel</strong>).</p></div></li>
-  <li><div><h3>Open Privacy &amp; Security</h3><p>Open the Apple menu → <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong> and scroll down to the <strong>Security</strong> section.</p></div></li>
-  <li><div><h3>Click Open Anyway</h3><p>Next to “Lodestone was blocked”, click <strong>Open Anyway</strong>, enter your password, then click <strong>Open</strong> in the dialog that follows. macOS remembers this choice.</p></div></li>
-</ol>
-</section>
 <section id="noadmin"><h2>Without admin rights</h2>
-<p>On a Mac where you can't write to /Applications, drag Lodestone into the <strong>Applications folder inside your home folder</strong> instead (create it if it's missing), then run:</p>
-<div class="cmd"><code id="cmd-3">xattr -dr com.apple.quarantine ~/Applications/Lodestone.app</code><button type="button" data-copy="cmd-3"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<p>The one-command install handles this for you: if you can't write to /Applications, it installs into the Applications folder in your home folder instead. By hand, drag Lodestone into <strong>Applications inside your home folder</strong> (create it if it's missing), then run:</p>
+<div class="cmd"><code id="cmd-4">xattr -dr com.apple.quarantine ~/Applications/Lodestone.app</code><button type="button" data-copy="cmd-4"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 <p>If you open Lodestone from anywhere else, such as Downloads, it moves itself to <code>~/Applications</code> and reopens, so Spotlight and Launchpad can find it.</p>
 </section>
 <section id="update"><h2>Updating</h2>
@@ -131,12 +128,12 @@
 </section>
 <section id="uninstall"><h2>Uninstalling</h2>
 <p>Quit Lodestone and drag it from Applications to the Trash. This keeps your worlds. To remove everything, also delete the data folder:</p>
-<div class="cmd"><code id="cmd-4">rm -rf ~/Library/Application\ Support/dev.p1e2r.Lodestone</code><button type="button" data-copy="cmd-4"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<div class="cmd"><code id="cmd-5">rm -rf ~/Library/Application\ Support/dev.p1e2r.Lodestone</code><button type="button" data-copy="cmd-5"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 </section>
 <section id="help"><h2>Troubleshooting</h2>
 <div class="faq">
-  <details><summary>“Lodestone is damaged and can't be opened”</summary><div><p>The app isn't damaged: this is how macOS reports a downloaded app that isn't notarized. Run the <a href="#install">Terminal command</a> from step 3 and open it again.</p></div></details>
-  <details><summary>“Apple could not verify Lodestone is free of malware”</summary><div><p>Use <a href="#open">Open Anyway</a> in Privacy &amp; Security, or the Terminal command from step 3.</p></div></details>
+  <details><summary>“Lodestone is damaged and can't be opened”</summary><div><p>The app isn't damaged: this is how macOS reports a downloaded app that isn't notarized. Use the <a href="#quick">one-command install</a>, or run the Terminal command from <a href="#install">step 3</a> and open it again.</p></div></details>
+  <details><summary>“Apple could not verify Lodestone is free of malware”</summary><div><p>Use the <a href="#quick">one-command install</a>, or the Terminal command from <a href="#install">step 3</a>.</p></div></details>
   <details><summary>“You can't open the application because it isn't supported on this type of Mac”</summary><div><p>You downloaded the arm64 build on an Intel Mac. Get the <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-intel.dmg">Intel build</a> instead.</p></div></details>
   <details><summary>macOS asks to install Rosetta</summary><div><p>You're running the Intel build on an Apple Silicon Mac. Install Rosetta, or better, switch to the <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-arm64.dmg">arm64 build</a>.</p></div></details>
   <details><summary>“Lodestone requires macOS 12.0 or later”</summary><div><p>Lodestone supports macOS 12 Monterey and newer. Update macOS from System Settings → General → Software Update, if your Mac supports it.</p></div></details>

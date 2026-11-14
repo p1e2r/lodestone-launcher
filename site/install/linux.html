@@ -57,7 +57,7 @@
   <div class="wrap">
     <div class="crumbs"><a href="../">Home</a> <span aria-hidden="true">/</span> <a href="./">Install guide</a> <span aria-hidden="true">/</span> <span aria-current="page">Linux</span></div>
     <h1>Install on Linux</h1>
-    <p class="lede">Unpack one file, make sure Vulkan is installed, and run it. Optionally add it to your app menu.</p>
+    <p class="lede">Run one command, or download the archive and double-click Lodestone. Either way it adds itself to your app menu.</p>
     <div class="dlpanel">
   <div class="dlbox">
     <h2>Linux · x86_64</h2>
@@ -68,7 +68,7 @@
   <div class="dlbox">
     <h2>From a terminal</h2>
     <p class="muted">Downloads the latest release into the current folder.</p>
-    <div class="cmd"><code id="cmd-5">curl -LO https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-linux-x64.tar.gz</code><button type="button" data-copy="cmd-5"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+    <div class="cmd"><code id="cmd-6">curl -LO https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-linux-x64.tar.gz</code><button type="button" data-copy="cmd-6"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
   </div>
 </div>
 <div class="req"><span><b>x86_64</b> (64-bit Intel or AMD)</span><span><b>glibc 2.35+</b>: Ubuntu 22.04, Debian 12, Fedora 36 or newer</span><span>A <b>Vulkan</b> graphics driver</span><span>X11 or Wayland</span></div>
@@ -77,9 +77,9 @@
 </section>
 <div class="wrap guide">
 <nav class="toc" aria-label="On this page"><p>ON THIS PAGE</p>
-  <a href="#install">Install</a>
+  <a href="#quick">One-command install</a>
+  <a href="#install">Install by hand</a>
   <a href="#libs">Graphics libraries</a>
-  <a href="#menu">Add to the app menu</a>
   <a href="#update">Updating</a>
   <a href="#files">Where files go</a>
   <a href="#uninstall">Uninstalling</a>
@@ -89,16 +89,21 @@
   <a href="macos.html">macOS</a>
 </nav>
 <div class="guide-body">
-<section id="install"><h2>Install</h2>
+<section id="quick"><h2>One-command install</h2>
+<p>Open a terminal, paste this and press Enter:</p>
+<div class="cmd"><code id="cmd-7">curl -fsSL https://p1e2r.github.io/lodestone-launcher/install.sh | sh</code><button type="button" data-copy="cmd-7"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<p>It installs Lodestone into <code>~/.local/opt/lodestone</code>, adds it to your app menu, checks for the graphics libraries it needs and opens it. No sudo needed. Run it again any time to reinstall.</p>
+</section>
+<section id="install"><h2>Install by hand</h2>
 <ol class="steps">
-  <li><div><h3>Download the archive</h3><p>Download <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-linux-x64.tar.gz"><code>Lodestone-linux-x64.tar.gz</code></a>, or use the curl command above.</p></div></li>
-  <li><div><h3>Unpack it</h3><p>This puts Lodestone in <code>~/.local/opt/lodestone</code>. Run it from the folder you downloaded to:</p><div class="cmd"><code id="cmd-6">mkdir -p ~/.local/opt/lodestone &amp;&amp; tar -xzf Lodestone-linux-x64.tar.gz -C ~/.local/opt/lodestone</code><button type="button" data-copy="cmd-6"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div></li>
-  <li><div><h3>Install the graphics libraries</h3><p>Most desktops already have them. If not, see <a href="#libs">Graphics libraries</a> for your distribution.</p></div></li>
-  <li><div><h3>Run it</h3><div class="cmd"><code id="cmd-7">~/.local/opt/lodestone/lodestone</code><button type="button" data-copy="cmd-7"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div><p>Click your name at the bottom of the sidebar (or open <strong>Accounts</strong>) and add a username. Then click <strong>New instance</strong>, pick a Minecraft version and a mod loader, and press <strong>Play</strong>. The first launch of each version downloads the game and the right Java, a few hundred MB.</p></div></li>
+  <li><div><h3>Download the archive</h3><p>Download <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-linux-x64.tar.gz"><code>Lodestone-linux-x64.tar.gz</code></a>.</p></div></li>
+  <li><div><h3>Extract it</h3><p>In your Downloads folder, right-click the archive and choose <strong>Extract Here</strong> (or double-click it and click <strong>Extract</strong>).</p></div></li>
+  <li><div><h3>Double-click lodestone</h3><p>Open the extracted folder and double-click <strong>lodestone</strong>. If it doesn't start, right-click it and choose <strong>Run as a Program</strong>; KDE asks you to confirm with <strong>Execute</strong>.</p></div></li>
+  <li><div><h3>Lodestone installs itself</h3><p>It copies itself to <code>~/.local/opt/lodestone</code>, adds <strong>Lodestone</strong> to your app menu with its icon, and reopens from there. You can delete the extracted folder.</p><p>Click your name at the bottom of the sidebar (or open <strong>Accounts</strong>) and add a username. Then click <strong>New instance</strong>, pick a Minecraft version and a mod loader, and press <strong>Play</strong>. The first launch of each version downloads the game and the right Java, a few hundred MB.</p></div></li>
 </ol>
 </section>
 <section id="libs"><h2>Graphics libraries</h2>
-<p>Lodestone draws its window with Vulkan and needs the X11 keyboard library.</p>
+<p>Lodestone draws its window with Vulkan and needs the X11 keyboard library. Most desktops already have them; the one-command install tells you if any are missing. To install them:</p>
 <h3 style="font-family:var(--body);font-size:17px;text-transform:none;letter-spacing:0">Ubuntu, Debian, Linux Mint, Pop!_OS</h3>
 <div class="cmd"><code id="cmd-8">sudo apt install libxkbcommon-x11-0 libxcb1 libvulkan1 mesa-vulkan-drivers</code><button type="button" data-copy="cmd-8"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 <h3 style="font-family:var(--body);font-size:17px;text-transform:none;letter-spacing:0">Fedora</h3>
@@ -106,19 +111,6 @@
 <h3 style="font-family:var(--body);font-size:17px;text-transform:none;letter-spacing:0">Arch, Manjaro, EndeavourOS</h3>
 <div class="cmd"><code id="cmd-10">sudo pacman -S --needed libxkbcommon-x11 vulkan-icd-loader</code><button type="button" data-copy="cmd-10"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 <p>On Arch, also install the Vulkan driver for your GPU: <code>vulkan-radeon</code> (AMD), <code>vulkan-intel</code> (Intel) or <code>nvidia-utils</code> (NVIDIA). On every distribution, NVIDIA cards need the proprietary driver.</p>
-</section>
-<section id="menu"><h2>Add to the app menu</h2>
-<p>Run this once to give Lodestone an entry with its icon in your desktop's app menu:</p>
-<div class="cmd multi"><code id="cmd-11">mkdir -p ~/.local/share/applications
-cat &gt; ~/.local/share/applications/lodestone.desktop &lt;&lt;EOF
-[Desktop Entry]
-Type=Application
-Name=Lodestone
-Comment=Minecraft launcher
-Exec=$HOME/.local/opt/lodestone/lodestone
-Icon=$HOME/.local/opt/lodestone/lodestone.png
-Categories=Game;
-EOF</code><button type="button" data-copy="cmd-11"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 </section>
 <section id="update"><h2>Updating</h2>
 <p>When a new version is out, an <strong>Update</strong> card appears at the bottom of the sidebar. Click <strong>Update</strong> and Lodestone replaces the file in <code>~/.local/opt/lodestone</code> and reopens. You can also check from <strong>Settings → Updates</strong>. Your instances, worlds and accounts are kept.</p>
@@ -128,9 +120,9 @@ EOF</code><button type="button" data-copy="cmd-11"><svg width="14" height="14"><
 </section>
 <section id="uninstall"><h2>Uninstalling</h2>
 <p>Remove the app and its menu entry:</p>
-<div class="cmd"><code id="cmd-12">rm -rf ~/.local/opt/lodestone ~/.local/share/applications/lodestone.desktop</code><button type="button" data-copy="cmd-12"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<div class="cmd"><code id="cmd-11">rm -rf ~/.local/opt/lodestone ~/.local/share/applications/lodestone.desktop</code><button type="button" data-copy="cmd-11"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 <p>This keeps your worlds. To remove everything, also delete the data folder:</p>
-<div class="cmd"><code id="cmd-13">rm -rf ~/.local/share/lodestone</code><button type="button" data-copy="cmd-13"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<div class="cmd"><code id="cmd-12">rm -rf ~/.local/share/lodestone</code><button type="button" data-copy="cmd-12"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 </section>
 <section id="help"><h2>Troubleshooting</h2>
 <div class="faq">

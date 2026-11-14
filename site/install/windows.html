@@ -78,6 +78,7 @@
 </section>
 <div class="wrap guide">
 <nav class="toc" aria-label="On this page"><p>ON THIS PAGE</p>
+  <a href="#quick">One-command install</a>
   <a href="#install">Install</a>
   <a href="#portable">Without the installer</a>
   <a href="#update">Updating</a>
@@ -89,7 +90,13 @@
   <a href="linux.html">Linux</a>
 </nav>
 <div class="guide-body">
+<section id="quick"><h2>One-command install</h2>
+<p>The quickest way, with no SmartScreen warning. Open <strong>PowerShell</strong> (click Start, type <em>PowerShell</em>, press Enter), paste this and press Enter:</p>
+<div class="cmd"><code id="cmd-1">irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex</code><button type="button" data-copy="cmd-1"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<p>It downloads the latest installer, installs Lodestone for your user and opens it. Run it again any time to reinstall.</p>
+</section>
 <section id="install"><h2>Install</h2>
+<p>Prefer to click through it yourself? Use the installer:</p>
 <ol class="steps">
   <li><div><h3>Download the installer</h3><p>Download <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-windows-x64-setup.exe"><code>Lodestone-windows-x64-setup.exe</code></a>. If Edge says the file “isn't commonly downloaded”, click <strong>…</strong> → <strong>Keep</strong> → <strong>Show more</strong> → <strong>Keep anyway</strong>. In Chrome, click <strong>Keep</strong>.</p></div></li>
   <li><div><h3>Open it and get past SmartScreen</h3><p>Lodestone isn't code-signed yet, so Windows may show <strong>“Windows protected your PC”</strong>. Click <strong>More info</strong>, then <strong>Run anyway</strong>. You only need to do this once.</p></div></li>

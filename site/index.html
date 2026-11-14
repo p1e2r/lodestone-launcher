@@ -142,6 +142,12 @@
         <p>Every button downloads the file straight from the newest GitHub release. It's free, and nothing else gets installed.</p>
         <div class="latest" id="latest"><span class="tag" id="latest-tag">LATEST</span><span id="latest-date">Always the newest release</span></div>
       </div>
+      <div class="quick" id="quick" style="margin-bottom:34px">
+        <h3>Install with one command</h3>
+        <p>Detects your system, downloads the right file and installs it. No security warnings to click through.</p>
+        <div class="row" data-quick="unix"><span>macOS and Linux: paste into Terminal</span><div class="cmd"><code id="q-sh">curl -fsSL https://p1e2r.github.io/lodestone-launcher/install.sh | sh</code><button type="button" data-copy="q-sh"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
+        <div class="row" data-quick="win"><span>Windows: paste into PowerShell</span><div class="cmd"><code id="q-ps">irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex</code><button type="button" data-copy="q-ps"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
+      </div>
       <div class="downloads">
         <div class="dl" data-os="win">
           <div class="dl-top"><svg><use href="#i-windows"/></svg><div><h3>Windows</h3><p class="muted">Windows 10 and 11, 64-bit</p></div></div>
@@ -159,7 +165,7 @@
             <a class="dl-file" data-asset="Lodestone-macos-arm64.dmg" href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-arm64.dmg">
               <span class="n"><strong>Disk image</strong><code>Lodestone-macos-arm64.dmg</code></span><span class="size"></span><svg><use href="#i-download"/></svg></a>
           </div>
-          <p class="dl-note">Needs one extra step the first time. <a href="install/macos.html">macOS install guide</a></p>
+          <p class="dl-note">Needs one Terminal command the first time. <a href="install/macos.html">macOS install guide</a></p>
         </div>
         <div class="dl" data-os="mac-intel">
           <div class="dl-top"><svg><use href="#i-apple"/></svg><div><h3>macOS · Intel</h3><p class="muted">Macs with an Intel processor</p></div></div>
@@ -196,6 +202,7 @@
       </div>
 
       <div class="pane" role="tabpanel" id="pane-win" aria-labelledby="tab-win">
+        <div class="quick" style="margin-bottom:22px"><h3>Fastest: one command</h3><p>Open PowerShell (Start → type PowerShell), paste, press Enter.</p><div class="cmd"><code id="p-ps">irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex</code><button type="button" data-copy="p-ps"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
         <ol class="steps">
           <li><div><h3>Download the installer</h3><p>Get <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-windows-x64-setup.exe"><code>Lodestone-windows-x64-setup.exe</code></a> and open it.</p></div></li>
           <li><div><h3>Get past SmartScreen</h3><p>Lodestone isn't code-signed yet, so Windows may show “Windows protected your PC”. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</p></div></li>
@@ -207,12 +214,13 @@
       </div>
 
       <div class="pane" role="tabpanel" id="pane-mac" aria-labelledby="tab-mac" hidden>
+        <div class="quick" style="margin-bottom:22px"><h3>Fastest: one command</h3><p>Open Terminal (⌘ Space, type Terminal), paste, press Return. It picks Apple Silicon or Intel for you and macOS won't block it.</p><div class="cmd"><code id="p-sh-mac">curl -fsSL https://p1e2r.github.io/lodestone-launcher/install.sh | sh</code><button type="button" data-copy="p-sh-mac"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
         <ol class="steps">
           <li><div><h3>Download the right disk image</h3><p><a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-arm64.dmg">Apple Silicon (.dmg)</a> for M-series Macs, or <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-macos-intel.dmg">Intel (.dmg)</a> for older ones.</p></div></li>
           <li><div><h3>Drag Lodestone into Applications</h3><p>Open the .dmg and drag the Lodestone icon onto the Applications folder.</p></div></li>
           <li><div><h3>Allow it to open</h3><p>Lodestone isn't notarized by Apple yet, so macOS blocks it the first time. Paste this into Terminal once:</p>
             <div class="cmd"><code id="cmd-xattr">xattr -dr com.apple.quarantine /Applications/Lodestone.app</code><button type="button" data-copy="cmd-xattr"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
-            <p>No Terminal? Try to open Lodestone, then go to System Settings → Privacy &amp; Security, scroll down and click <strong>Open Anyway</strong>.</p></div></li>
+            <p>This removes the “downloaded from the internet” flag that makes macOS call the app damaged. The one-command install skips it.</p></div></li>
           <li><div><h3>Open Lodestone and play</h3><p>Launch it from Applications or Spotlight. Add an offline account, make an instance, and press <strong>Play</strong>.</p></div></li>
         </ol>
         <p class="install-more"><a href="install/macos.html">Full macOS guide →</a> Apple Silicon and Intel, no-Terminal option, troubleshooting.</p>
@@ -220,6 +228,7 @@
       </div>
 
       <div class="pane" role="tabpanel" id="pane-linux" aria-labelledby="tab-linux" hidden>
+        <div class="quick" style="margin-bottom:22px"><h3>Fastest: one command</h3><p>Installs Lodestone, adds it to your app menu and checks the graphics libraries.</p><div class="cmd"><code id="p-sh-linux">curl -fsSL https://p1e2r.github.io/lodestone-launcher/install.sh | sh</code><button type="button" data-copy="p-sh-linux"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
         <ol class="steps">
           <li><div><h3>Download and unpack</h3>
             <div class="cmd"><code id="cmd-dl">curl -LO https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-linux-x64.tar.gz</code><button type="button" data-copy="cmd-dl"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
@@ -251,7 +260,7 @@
           <p>Each instance's page also has an <strong>Open folder</strong> button.</p></div></details>
         <details><summary>How do updates work?</summary><div><p>Lodestone checks GitHub for a new release when it starts. When one is out, an Update card appears in the sidebar; click it and Lodestone downloads the new version, replaces itself and relaunches. You can also check from Settings → Updates.</p></div></details>
         <details><summary>Can I use my existing mods and modpacks?</summary><div><p>Yes. Drop <code>.jar</code> files onto an instance's Mods tab, import any <code>.mrpack</code> file from the Library, or install straight from Modrinth in Discover. Files from Modrinth are recognized automatically, so they show as installed and can switch versions.</p></div></details>
-        <details><summary>Why does my computer warn me when I open it?</summary><div><p>The builds aren't code-signed by Microsoft or notarized by Apple yet, which costs money each year. The warning is generic for unsigned apps. The install steps above show how to get past it, and every release is built from the public source by GitHub Actions.</p></div></details>
+        <details><summary>Why does my computer warn me when I open it?</summary><div><p>The builds aren't code-signed by Microsoft or notarized by Apple yet, which costs money each year. The warning is generic for unsigned apps. The one-command install avoids the warnings entirely, and every release is built from the public source by GitHub Actions.</p></div></details>
         <details><summary>How do I uninstall it?</summary><div><p>Windows: Settings → Apps → Lodestone → Uninstall. macOS: drag Lodestone from Applications to the Trash. Linux: delete the folder you unpacked. To remove your instances and worlds too, delete the data folder listed above.</p></div></details>
         <details><summary>Is this an official Minecraft product?</summary><div><p>No. Lodestone is an independent project and isn't approved by or associated with Mojang or Microsoft. Modrinth content is provided by Modrinth.</p></div></details>
       </div>
@@ -473,6 +482,7 @@
     document.getElementById("hero-dl-label").textContent = mine.label;
     document.getElementById("hero-dl-sub").textContent = heroSub(mine);
     document.querySelector(`.dl[data-os="${mine.card}"]`)?.classList.add("mine");
+    document.querySelector(`[data-quick="${os === "win" ? "win" : "unix"}"]`)?.classList.add("mine");
     selectTab(mine.tab);
   });
 
