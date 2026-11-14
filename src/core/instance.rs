@@ -64,6 +64,8 @@ pub struct Instance {
     pub server: ServerCfg,
     /// Modpack this instance was created from, if any.
     pub modpack: Option<String>,
+    /// Custom icon file name inside the instance folder.
+    pub icon: Option<String>,
 }
 
 fn slugify(name: &str) -> String {
@@ -172,6 +174,40 @@ impl Instance {
     /// Mods must be `.jar`; packs must be `.zip`. Returns (added, skipped) names.
     pub fn import_content(&self, sub: &str, paths: &[PathBuf]) -> Result<(Vec<String>, Vec<String>)> {
         import_into(&self.content_dir(sub), sub, paths)
+    }
+
+    /// Path of the custom icon, if one is set and still exists.
+    pub fn icon_path(&self) -> Option<PathBuf> {
+        let p = self.dir().join(self.icon.as_ref()?);
+        p.exists().then_some(p)
+    }
+
+    /// Use an image file as this instance's icon (PNG, JPG, WebP or GIF).
+    pub fn set_icon_from(&mut self, src: &Path) -> Result<()> {
+        let ext = src
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .filter(|e| ["png", "jpg", "jpeg", "webp", "gif"].contains(&e.as_str()))
+            .ok_or_else(|| anyhow!("Pick a PNG, JPG, WebP or GIF image"))?;
+        std::fs::create_dir_all(self.dir())?;
+        // A new file name each time, so the UI doesn't show a cached old image.
+        let name = format!("icon-{}.{ext}", chrono::Utc::now().timestamp_millis());
+        std::fs::copy(src, self.dir().join(&name))?;
+        self.clear_icon_file();
+        self.icon = Some(name);
+        self.save()
+    }
+
+    pub fn reset_icon(&mut self) -> Result<()> {
+        self.clear_icon_file();
+        self.icon = None;
+        self.save()
+    }
+
+    fn clear_icon_file(&self) {
+        if let Some(old) = &self.icon {
+            let _ = std::fs::remove_file(self.dir().join(old));
+        }
     }
 
     pub fn memory(&self, s: &Settings) -> u32 {

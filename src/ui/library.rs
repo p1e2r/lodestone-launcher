@@ -155,7 +155,7 @@ impl LodestoneApp {
                     .justify_end()
                     .gap(px(10.))
                     .child(div().text_xs().font_family(PIXEL).text_color(rgb(ACCENT)).child(kicker))
-                    .child(div().flex().items_center().gap(px(14.)).child(instance_tile(&inst.name, inst.loader, 52.)).child(
+                    .child(div().flex().items_center().gap(px(14.)).child(inst_tile(inst, 52.)).child(
                         div()
                             .v_flex()
                             .gap(px(2.))
@@ -236,7 +236,7 @@ impl LodestoneApp {
                     .pb(px(10.))
                     .child(div().absolute().top_0().left_0().size_full().child(img(super::art::banner(&inst.id)).size_full().object_fit(ObjectFit::Cover)))
                     .child(div().absolute().top_0().left_0().size_full().bg(linear_gradient(180., linear_color_stop(Hsla::from(rgb(PANEL)).opacity(0.0), 0.45), linear_color_stop(rgb(PANEL), 1.))))
-                    .child(div().relative().child(instance_tile(&inst.name, inst.loader, 46.)))
+                    .child(div().relative().child(inst_tile(inst, 46.)))
                     .child(
                         div().absolute().top(px(10.)).right(px(10.)).flex().gap(px(6.))
                             .when(inst.modpack.is_some(), |d| d.child(badge("Modpack", INFO)))

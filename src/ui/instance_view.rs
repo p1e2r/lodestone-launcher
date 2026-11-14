@@ -71,6 +71,29 @@ impl LodestoneApp {
         cx.notify();
     }
 
+    pub fn pick_icon(&mut self, inst_id: String, cx: &mut Context<Self>) {
+        let rx = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Use as icon".into()),
+        });
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(paths))) = rx.await else { return };
+            let Some(path) = paths.into_iter().next() else { return };
+            let _ = this.update(cx, |this, cx| {
+                if let Some(inst) = this.instances.iter_mut().find(|i| i.id == inst_id) {
+                    match inst.set_icon_from(&path) {
+                        Ok(()) => this.notify_ok("Icon updated"),
+                        Err(e) => this.notify_err(format!("{e:#}")),
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn pick_content_files(&mut self, inst_id: String, sub: &'static str, cx: &mut Context<Self>) {
         let rx = cx.prompt_for_paths(PathPromptOptions {
             files: true,
@@ -183,7 +206,14 @@ impl LodestoneApp {
                     .flex()
                     .items_center()
                     .gap(px(18.))
-                    .child(instance_tile(&inst.name, inst.loader, 72.).shadow_lg())
+                    .child({
+                        let id = inst.id.clone();
+                        div()
+                            .id("header-icon")
+                            .cursor_pointer()
+                            .child(inst_tile(inst, 72.))
+                            .on_click(cx.listener(move |this, _, _, cx| this.pick_icon(id.clone(), cx)))
+                    })
                     .child(
                         div()
                             .flex_1()
@@ -599,6 +629,44 @@ impl LodestoneApp {
                                 }))),
                             ),
                     )
+                    .child({
+                        let (id_pick, id_reset) = (inst.id.clone(), inst.id.clone());
+                        let has_icon = inst.icon_path().is_some();
+                        card()
+                            .p(px(18.))
+                            .v_flex()
+                            .gap(px(12.))
+                            .child(section_title("Icon"))
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(16.))
+                                    .child(inst_tile(inst, 64.))
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .v_flex()
+                                            .gap(px(8.))
+                                            .child(muted("Use any PNG, JPG, WebP or GIF image. Square images look best."))
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .gap(px(8.))
+                                                    .child(Button::new("change-icon").icon(I::Image).label("Change icon…").on_click(cx.listener(move |this, _, _, cx| this.pick_icon(id_pick.clone(), cx))))
+                                                    .when(has_icon, |d| {
+                                                        d.child(Button::new("reset-icon").label("Reset").on_click(cx.listener(move |this, _, _, cx| {
+                                                            if let Some(i) = this.instances.iter_mut().find(|i| i.id == id_reset) {
+                                                                let _ = i.reset_icon();
+                                                            }
+                                                            this.notify_ok("Icon reset");
+                                                            cx.notify();
+                                                        })))
+                                                    }),
+                                            ),
+                                    ),
+                            )
+                    })
                     .child(
                         card()
                             .p(px(18.))

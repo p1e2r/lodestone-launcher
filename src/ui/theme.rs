@@ -251,6 +251,20 @@ pub fn instance_tile(name: &str, loader: Loader, size: f32) -> Div {
     bevel(tile, 0.35, 0.3, (size / 16.).max(2.)).shadow(pixel_shadow(3.))
 }
 
+/// The instance's tile: its custom icon if set, otherwise the letter tile.
+pub fn inst_tile(inst: &crate::core::instance::Instance, size: f32) -> Div {
+    match inst.icon_path() {
+        Some(p) => div()
+            .flex_none()
+            .size(px(size))
+            .bg(rgb(PANEL_3))
+            .overflow_hidden()
+            .shadow(pixel_shadow(3.))
+            .child(img(p).size_full().object_fit(ObjectFit::Cover)),
+        None => instance_tile(&inst.name, inst.loader, size),
+    }
+}
+
 /// An 8×8 pixel-art face generated from the username (original art).
 pub fn avatar(name: &str, size: f32) -> Div {
     let h = crate::core::net::sha1_bytes(name.as_bytes());

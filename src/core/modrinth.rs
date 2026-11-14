@@ -408,7 +408,16 @@ pub async fn install_modpack(project_id: &str, kind: Kind, rep: &Reporter) -> Re
     let f = primary(&v).ok_or_else(|| anyhow!("modpack has no files"))?;
     let path = paths().cache().join("modpacks").join(&f.filename);
     net::download_one(&Dl::new(&f.url, &path).sha1(f.hashes.get("sha1").cloned())).await?;
-    install_mrpack(&path, kind, Some(project_id.to_string()), rep).await
+    let mut inst = install_mrpack(&path, kind, Some(project_id.to_string()), rep).await?;
+    // Use the modpack's own icon.
+    if let Ok(p) = net::get_json::<serde_json::Value>(&format!("{API}/project/{project_id}")).await {
+        if let Some(url) = p.get("icon_url").and_then(|u| u.as_str()) {
+            if let Ok(icon) = cached_icon(url).await {
+                let _ = inst.set_icon_from(&icon);
+            }
+        }
+    }
+    Ok(inst)
 }
 
 /// Create an instance from a `.mrpack` file.
