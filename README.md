@@ -2,6 +2,8 @@
 
 A native Minecraft launcher written in Rust with [GPUI](https://gpui.rs).
 
+**Website and downloads: <https://p1e2r.github.io/lodestone-launcher/>**
+
 > Early preview (0.1). Everything below works; expect rough edges.
 
 ## Features
@@ -66,6 +68,7 @@ Command-line mode for testing: `lodestone --cli install 26.2 fabric 0.20.1`.
 |------|------|
 | `src/core` | Launcher engine: versions, libraries, assets, Java, loaders, Modrinth, servers, accounts |
 | `src/ui` | GPUI interface |
+| `site` | Website (GitHub Pages, deployed by `.github/workflows/pages.yml`) |
 
 ## Credits
 
