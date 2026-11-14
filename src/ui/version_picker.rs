@@ -221,6 +221,8 @@ impl LodestoneApp {
 
         div()
             .id("picker-backdrop")
+            // Keep clicks and scrolling from reaching the page behind the popup.
+            .occlude()
             .absolute()
             .top_0()
             .left_0()
@@ -269,6 +271,7 @@ impl LodestoneApp {
                         div()
                             .id("picker-scroll")
                             .flex_1()
+                            .min_h_0()
                             .mx(px(22.))
                             .mb(px(22.))
                             .border_1()

@@ -269,6 +269,9 @@ impl LodestoneApp {
         let eula = d.eula;
 
         div()
+            .id("dialog-backdrop")
+            // Keep clicks and scrolling from reaching the page behind the dialog.
+            .occlude()
             .absolute()
             .top_0()
             .left_0()
