@@ -267,3 +267,11 @@ footer a { color: var(--muted); }
 .quick .row > span { font-size: 14px; color: var(--muted); }
 .quick .row.mine > span { color: var(--accent); }
 .quick .row.mine > span::after { content: " · your system"; }
+
+.or { display: flex; align-items: center; gap: 12px; color: var(--faint); font-family: var(--display); font-size: 11px; letter-spacing: .14em; }
+.or::before, .or::after { content: ""; flex: 1; height: 2px; background: var(--border); }
+.or-cmd { display: grid; gap: 6px; min-width: 0; }
+.or-cmd > span { font-size: 14px; color: var(--muted); }
+.or-cmd .cmd code { font-size: 17px; }
+.quick, .quick .row, .or-cmd { grid-template-columns: minmax(0, 1fr); }
+.cmd { min-width: 0; width: 100%; }
