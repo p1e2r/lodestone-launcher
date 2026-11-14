@@ -143,6 +143,6 @@ case "$(uname -s)" in
   Darwin) install_macos ;;
   Linux) install_linux ;;
   MINGW*|MSYS*|CYGWIN*)
-    die "on Windows, run this in PowerShell instead:  irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex" ;;
+    die "on Windows, run this in PowerShell instead:  iex ((New-Object Net.WebClient).DownloadString('https://p1e2r.github.io/lodestone-launcher/install.ps1'))" ;;
   *) die "unsupported system: $(uname -s). See https://p1e2r.github.io/lodestone-launcher/install/" ;;
 esac

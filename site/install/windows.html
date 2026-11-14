@@ -92,7 +92,7 @@
 <div class="guide-body">
 <section id="quick"><h2>One-command install</h2>
 <p>The quickest way, with no SmartScreen warning. Open <strong>PowerShell</strong> (click Start, type <em>PowerShell</em>, press Enter), paste this and press Enter:</p>
-<div class="cmd"><code id="cmd-1">irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex</code><button type="button" data-copy="cmd-1"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
+<div class="cmd"><code id="cmd-1">iex ((New-Object Net.WebClient).DownloadString('https://p1e2r.github.io/lodestone-launcher/install.ps1'))</code><button type="button" data-copy="cmd-1"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div>
 <p>It downloads the latest installer, installs Lodestone for your user and opens it. Run it again any time to reinstall.</p>
 </section>
 <section id="install"><h2>Install</h2>

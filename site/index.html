@@ -146,7 +146,7 @@
         <h3>Install with one command</h3>
         <p>Detects your system, downloads the right file and installs it. No security warnings to click through.</p>
         <div class="row" data-quick="unix"><span>macOS and Linux: paste into Terminal</span><div class="cmd"><code id="q-sh">curl -fsSL https://p1e2r.github.io/lodestone-launcher/install.sh | sh</code><button type="button" data-copy="q-sh"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
-        <div class="row" data-quick="win"><span>Windows: paste into PowerShell</span><div class="cmd"><code id="q-ps">irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex</code><button type="button" data-copy="q-ps"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
+        <div class="row" data-quick="win"><span>Windows: paste into PowerShell</span><div class="cmd"><code id="q-ps">iex ((New-Object Net.WebClient).DownloadString('https://p1e2r.github.io/lodestone-launcher/install.ps1'))</code><button type="button" data-copy="q-ps"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
       </div>
       <div class="downloads">
         <div class="dl" data-os="win">
@@ -202,7 +202,7 @@
       </div>
 
       <div class="pane" role="tabpanel" id="pane-win" aria-labelledby="tab-win">
-        <div class="quick" style="margin-bottom:22px"><h3>Fastest: one command</h3><p>Open PowerShell (Start → type PowerShell), paste, press Enter.</p><div class="cmd"><code id="p-ps">irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex</code><button type="button" data-copy="p-ps"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
+        <div class="quick" style="margin-bottom:22px"><h3>Fastest: one command</h3><p>Open PowerShell (Start → type PowerShell), paste, press Enter.</p><div class="cmd"><code id="p-ps">iex ((New-Object Net.WebClient).DownloadString('https://p1e2r.github.io/lodestone-launcher/install.ps1'))</code><button type="button" data-copy="p-ps"><svg width="14" height="14"><use href="#i-copy"/></svg><span>Copy</span></button></div></div>
         <ol class="steps">
           <li><div><h3>Download the installer</h3><p>Get <a href="https://github.com/p1e2r/lodestone-launcher/releases/latest/download/Lodestone-windows-x64-setup.exe"><code>Lodestone-windows-x64-setup.exe</code></a> and open it.</p></div></li>
           <li><div><h3>Get past SmartScreen</h3><p>Lodestone isn't code-signed yet, so Windows may show “Windows protected your PC”. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</p></div></li>

@@ -1,6 +1,6 @@
 # Lodestone installer for Windows.
 #
-#   irm https://p1e2r.github.io/lodestone-launcher/install.ps1 | iex
+#   iex ((New-Object Net.WebClient).DownloadString('https://p1e2r.github.io/lodestone-launcher/install.ps1'))
 #
 # Downloads the latest installer and installs Lodestone for the current user.
 # No admin rights needed. Your instances and worlds are kept.
