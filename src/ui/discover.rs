@@ -12,6 +12,7 @@ use gpui_kit::prelude::FluentBuilder as _;
 
 use super::theme::*;
 use super::{LodestoneApp, page_header};
+use super::version_picker::PickMode;
 use crate::core::instance::Kind;
 use crate::core::modrinth::{self, ContentType, SearchHit};
 use crate::core::session::{Reporter, RunState};
@@ -91,45 +92,75 @@ impl LodestoneApp {
         cx.notify();
     }
 
+    fn target_kind(&self) -> Kind {
+        self.discover.target.as_deref().and_then(|id| self.instance(id)).map(|i| i.kind).unwrap_or(Kind::Client)
+    }
+
     fn install_hit(&mut self, hit: &SearchHit, cx: &mut Context<Self>) {
-        let pid = hit.project_id.clone();
-        let title = hit.title.clone();
+        let (pid, title) = (hit.project_id.clone(), hit.title.clone());
         if self.discover.ctype == ContentType::Modpack {
-            let kind = self.discover.target.as_deref().and_then(|id| self.instance(id)).map(|i| i.kind).unwrap_or(Kind::Client);
-            self.discover.installing.insert(pid.clone());
-            let rep = Reporter::new("import");
-            rep.clear_log();
-            rep.set_state(RunState::Working);
-            self.notify_ok(format!("Installing modpack “{title}”…"));
-            self.bg(
-                cx,
-                async move {
-                    let r = modrinth::install_modpack(&pid, kind, &rep).await;
-                    rep.set_state(RunState::Idle);
-                    (pid, r.map(|i| i.name).map_err(|e| format!("{e:#}")))
-                },
-                |this, (pid, r), _| {
-                    this.discover.installing.remove(&pid);
-                    this.reload_instances();
-                    match r {
-                        Ok(name) => this.notify_ok(format!("Created “{name}” — find it in your Library")),
-                        Err(e) => this.notify_err(e),
-                    }
-                },
-            );
-            cx.notify();
+            let kind = self.target_kind();
+            self.install_pack(pid, title, kind, None, cx);
             return;
         }
-        let Some(inst) = self.discover.target.as_deref().and_then(|id| self.instance(id)).cloned() else {
+        let Some(id) = self.discover.target.clone() else {
             self.notify_err("Choose an instance to install into first");
             cx.notify();
             return;
         };
+        self.install_content(&id, pid, title, None, cx);
+    }
+
+    /// Open the version list for a search result.
+    fn pick_hit_version(&mut self, hit: &SearchHit, cx: &mut Context<Self>) {
+        let (pid, title) = (hit.project_id.clone(), hit.title.clone());
+        if self.discover.ctype == ContentType::Modpack {
+            let kind = self.target_kind();
+            self.open_version_picker(pid, title, PickMode::NewPack { kind }, cx);
+            return;
+        }
+        let Some(inst_id) = self.discover.target.clone() else {
+            self.notify_err("Choose an instance first — only versions that work with it are listed");
+            cx.notify();
+            return;
+        };
+        self.open_version_picker(pid, title, PickMode::Content { inst_id }, cx);
+    }
+
+    /// Install a modpack as a new instance (`version` = None for the newest).
+    pub fn install_pack(&mut self, pid: String, title: String, kind: Kind, version: Option<String>, cx: &mut Context<Self>) {
+        self.discover.installing.insert(pid.clone());
+        let rep = Reporter::new("import");
+        rep.clear_log();
+        rep.set_state(RunState::Working);
+        self.notify_ok(format!("Installing modpack “{title}”…"));
+        self.bg(
+            cx,
+            async move {
+                let r = modrinth::install_modpack(&pid, version, kind, &rep).await;
+                rep.set_state(RunState::Idle);
+                (pid, r.map(|i| i.name).map_err(|e| format!("{e:#}")))
+            },
+            |this, (pid, r), _| {
+                this.discover.installing.remove(&pid);
+                this.reload_instances();
+                match r {
+                    Ok(name) => this.notify_ok(format!("Created “{name}” — find it in your Library")),
+                    Err(e) => this.notify_err(e),
+                }
+            },
+        );
+        cx.notify();
+    }
+
+    /// Install a mod/pack/shader into an instance (`version` = None for the newest compatible).
+    pub fn install_content(&mut self, inst_id: &str, pid: String, title: String, version: Option<String>, cx: &mut Context<Self>) {
+        let Some(inst) = self.instance(inst_id).cloned() else { return };
         self.discover.installing.insert(pid.clone());
         let rep = Reporter::new(&inst.id);
         self.bg(
             cx,
-            async move { (pid.clone(), modrinth::install_project(&inst, &pid, &rep).await.map_err(|e| format!("{e:#}"))) },
+            async move { (pid.clone(), modrinth::install_project(&inst, &pid, version, &rep).await.map_err(|e| format!("{e:#}"))) },
             move |this, (pid, r), _| {
                 this.discover.installing.remove(&pid);
                 match r {
@@ -299,7 +330,14 @@ impl LodestoneApp {
                             ),
                     )
                     .child(
-                        div().flex_none().flex().items_center().child(
+                        div().flex_none().flex().items_center().gap(px(6.)).child({
+                            let hit3 = hit.clone();
+                            Button::new(("versions", i))
+                                .icon(I::ChevronsUpDown)
+                                .label("Versions")
+                                .disabled(installing)
+                                .on_click(cx.listener(move |this, _, _, cx| this.pick_hit_version(&hit3, cx)))
+                        }).child(
                             Button::new(("install", i))
                                 .map(|b| if installed { b } else { b.primary() })
                                 .icon(if installed { I::Check } else { I::Download })

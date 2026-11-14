@@ -64,6 +64,10 @@ pub struct Instance {
     pub server: ServerCfg,
     /// Modpack this instance was created from, if any.
     pub modpack: Option<String>,
+    /// Modrinth version id of the modpack currently installed.
+    pub modpack_version: Option<String>,
+    /// Its version number (e.g. "6.2.0"), for display.
+    pub modpack_version_name: Option<String>,
     /// Custom icon file name inside the instance folder.
     pub icon: Option<String>,
 }

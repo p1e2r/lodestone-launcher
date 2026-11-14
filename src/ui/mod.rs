@@ -3,6 +3,7 @@
 mod accounts;
 pub mod art;
 mod dialog;
+mod version_picker;
 mod discover;
 mod instance_view;
 mod library;
@@ -72,6 +73,7 @@ pub struct LodestoneApp {
     pub manifest: Option<VersionManifest>,
     pub manifest_error: Option<String>,
     pub dialog: Option<dialog::NewInstance>,
+    pub picker: Option<version_picker::VersionPicker>,
     pub discover: discover::DiscoverState,
     pub toast: Option<Toast>,
     pub icons: HashMap<String, PathBuf>,
@@ -126,6 +128,7 @@ impl LodestoneApp {
             manifest: None,
             manifest_error: None,
             dialog: None,
+            picker: None,
             discover,
             toast: None,
             icons: HashMap::new(),
@@ -650,7 +653,7 @@ impl LodestoneApp {
                     .shadow(pixel_shadow(4.))
                     .text_sm()
                     .child(div().mt(px(5.)).size(px(8.)).flex_none().bg(rgb(col)))
-                    .child(div().text_color(rgb(TEXT)).child(t.text.clone())),
+                    .child(div().flex_1().min_w_0().text_color(rgb(TEXT)).child(t.text.clone())),
             ),
         )
     }
@@ -668,6 +671,7 @@ impl Render for LodestoneApp {
             (Page::Settings, _) => self.settings_view(cx).into_any_element(),
         };
         let dialog = self.dialog.is_some().then(|| self.dialog_view(window, cx).into_any_element());
+        let picker = self.picker.is_some().then(|| self.version_picker_view(cx).into_any_element());
         div()
             .size_full()
             .relative()
@@ -685,6 +689,7 @@ impl Render for LodestoneApp {
                     .child(main),
             )
             .children(dialog)
+            .children(picker)
             .children(self.toast_view())
     }
 }

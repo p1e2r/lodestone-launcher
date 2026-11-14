@@ -13,6 +13,7 @@ use gpui_kit::*;
 use gpui_kit::prelude::FluentBuilder as _;
 
 use super::theme::*;
+use super::version_picker::PickMode;
 use super::{LodestoneApp, Page, Tab};
 use crate::core::instance::{self, Instance, Kind};
 use crate::core::loaders::Loader;
@@ -121,6 +122,10 @@ impl LodestoneApp {
         let Some(inst) = self.instance(id).cloned() else {
             return div().p(px(32.)).child("This instance no longer exists.").into_any_element();
         };
+        if self.inst_inputs.is_none() {
+            // Rebuilt after something outside the form changed the instance (e.g. a modpack version switch).
+            self.inst_inputs = Some(InstanceInputs::new(&inst, window, cx));
+        }
         let (state, stage, frac, total) = super::library::status_of(&inst);
         let is_server = inst.kind == Kind::Server;
 
@@ -322,6 +327,13 @@ impl LodestoneApp {
         let index = modrinth::InstalledIndex::load(inst);
         let titles: std::collections::HashMap<String, String> =
             index.projects.values().map(|p| (p.file.clone(), p.title.clone())).collect();
+        // file name -> (project id, title, version), for Modrinth content.
+        let projects: std::collections::HashMap<String, (String, String, String)> = index
+            .projects
+            .iter()
+            .filter(|(_, p)| p.folder == sub)
+            .map(|(id, p)| (p.file.clone(), (id.clone(), p.title.clone(), p.version.clone())))
+            .collect();
         let modded = inst.loader != Loader::Vanilla;
         let entity = cx.entity();
         let inst_id = inst.id.clone();
@@ -354,6 +366,8 @@ impl LodestoneApp {
                 .v_flex()
                 .children(files.into_iter().enumerate().map(|(i, f)| {
                     let title = titles.get(&f.display).cloned();
+                    let project = projects.get(&f.display).cloned();
+                    let pick_inst = inst_id.clone();
                     let f2 = f.clone();
                     let f3 = f.clone();
                     div()
@@ -383,6 +397,18 @@ impl LodestoneApp {
                                 .child(div().text_sm().font_weight(FontWeight::MEDIUM).truncate().text_color(if f.enabled { rgb(TEXT) } else { rgb(FAINT) }).child(title.clone().unwrap_or_else(|| f.display.clone())))
                                 .child(div().text_xs().text_color(rgb(FAINT)).truncate().child(format!("{} · {}", f.display, fmt_bytes(f.size)))),
                         )
+                        .when_some(project, |d, (pid, ptitle, version)| {
+                            d.child(
+                                Button::new(("ver", i))
+                                    .small()
+                                    .icon(I::ChevronsUpDown)
+                                    .label(version)
+                                    .ghost_like()
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.open_version_picker(pid.clone(), ptitle.clone(), PickMode::Content { inst_id: pick_inst.clone() }, cx);
+                                    })),
+                            )
+                        })
                         .child(Switch::new(("toggle", i)).checked(f.enabled).on_click({
                             let entity = entity.clone();
                             move |_, _, cx| {
@@ -629,6 +655,40 @@ impl LodestoneApp {
                                 }))),
                             ),
                     )
+                    .when_some(inst.modpack.clone(), |d, pack_id| {
+                        let inst_id = inst.id.clone();
+                        let version = inst.modpack_version_name.clone();
+                        let title = match &version {
+                            Some(v) => inst.name.strip_suffix(v.as_str()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| inst.name.clone()),
+                            None => inst.name.clone(),
+                        };
+                        d.child(
+                            card()
+                                .p(px(18.))
+                                .v_flex()
+                                .gap(px(12.))
+                                .child(section_title("Modpack"))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .justify_between()
+                                        .gap(px(16.))
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .min_w_0()
+                                                .v_flex()
+                                                .gap(px(4.))
+                                                .child(div().text_sm().font_weight(FontWeight::MEDIUM).child(format!("{} {}", title, version.clone().unwrap_or_else(|| "(unknown version)".into()))))
+                                                .child(muted(format!("Minecraft {} · {}. Switching versions keeps your worlds and settings.", inst.mc_version, inst.loader.name()))),
+                                        )
+                                        .child(Button::new("pack-version").icon(I::ChevronsUpDown).label("Change version…").on_click(cx.listener(move |this, _, _, cx| {
+                                            this.open_version_picker(pack_id.clone(), title.clone(), PickMode::ChangePack { inst_id: inst_id.clone() }, cx);
+                                        }))),
+                                ),
+                        )
+                    })
                     .child({
                         let (id_pick, id_reset) = (inst.id.clone(), inst.id.clone());
                         let has_icon = inst.icon_path().is_some();

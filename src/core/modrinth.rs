@@ -14,7 +14,13 @@ use super::net::{self, Dl, HTTP};
 use super::paths::paths;
 use super::session::Reporter;
 
-pub const API: &str = "https://api.modrinth.com/v2";
+const DEFAULT_API: &str = "https://api.modrinth.com/v2";
+
+/// Modrinth API base. `LODESTONE_MODRINTH_API` overrides it (for testing).
+fn api() -> &'static str {
+    static API: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    API.get_or_init(|| std::env::var("LODESTONE_MODRINTH_API").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| DEFAULT_API.to_string()))
+}
 pub const FABRIC_API_ID: &str = "P7dR8mSH";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,6 +104,11 @@ pub struct MVersion {
     pub files: Vec<MFile>,
     #[serde(default)]
     pub dependencies: Vec<MDep>,
+    #[serde(default)]
+    pub date_published: String,
+    /// "release", "beta" or "alpha".
+    #[serde(default)]
+    pub version_type: String,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -161,7 +172,7 @@ pub async fn search(
     let facets = serde_json::to_string(&facets)?;
     let index = if query.trim().is_empty() { "downloads" } else { "relevance" };
     let resp = HTTP
-        .get(format!("{API}/search"))
+        .get(format!("{}/search", api()))
         .query(&[
             ("query", query),
             ("facets", facets.as_str()),
@@ -184,12 +195,46 @@ pub async fn project_versions(id: &str, loaders: &[&str], game_version: Option<&
     if let Some(g) = game_version {
         q.push(("game_versions", serde_json::to_string(&[g])?));
     }
-    let resp = HTTP.get(format!("{API}/project/{id}/version")).query(&q).send().await?.error_for_status()?;
+    let resp = HTTP.get(format!("{}/project/{id}/version", api())).query(&q).send().await?.error_for_status()?;
     Ok(resp.json().await?)
 }
 
 pub async fn get_version(id: &str) -> Result<MVersion> {
-    net::get_json(&format!("{API}/version/{id}")).await
+    net::get_json(&format!("{}/version/{id}", api())).await
+}
+
+/// Whether a version runs on the instance's Minecraft version (and, for mods, its loader).
+pub fn is_compatible(inst: &Instance, v: &MVersion, ct: ContentType) -> bool {
+    if !v.game_versions.iter().any(|g| g == &inst.mc_version) {
+        return false;
+    }
+    if ct == ContentType::Mod {
+        let l = loader_filter(inst.loader);
+        return l.is_empty() || v.loaders.iter().any(|x| l.contains(&x.as_str()));
+    }
+    true
+}
+
+/// Versions of a project that work with an instance, newest first.
+pub async fn compatible_versions(inst: &Instance, project_id: &str) -> Result<Vec<MVersion>> {
+    let project: Project = net::get_json(&format!("{}/project/{project_id}", api())).await?;
+    let ct = ContentType::from_api(&project.project_type);
+    let loaders = if ct == ContentType::Mod { loader_filter(inst.loader) } else { vec![] };
+    let list = project_versions(&project.id, &loaders, Some(&inst.mc_version)).await?;
+    Ok(list.into_iter().filter(|v| is_compatible(inst, v, ct)).collect())
+}
+
+/// Every version of a modpack, newest first.
+pub async fn modpack_versions(project_id: &str) -> Result<Vec<MVersion>> {
+    project_versions(project_id, &[], None).await
+}
+
+async fn latest_compatible(inst: &Instance, project: &Project, ct: ContentType) -> Result<MVersion> {
+    let loaders = if ct == ContentType::Mod { loader_filter(inst.loader) } else { vec![] };
+    let list = project_versions(&project.id, &loaders, Some(&inst.mc_version)).await?;
+    list.into_iter().find(|v| is_compatible(inst, v, ct)).ok_or_else(|| {
+        anyhow!("{} has no version for Minecraft {} {}", project.title, inst.mc_version, if ct == ContentType::Mod { inst.loader.name() } else { "" })
+    })
 }
 
 /// What Lodestone installed from Modrinth into an instance.
@@ -231,9 +276,11 @@ fn primary(v: &MVersion) -> Option<&MFile> {
 }
 
 /// Install a project (and its required dependencies) into an instance.
-pub async fn install_project(inst: &Instance, project_id: &str, rep: &Reporter) -> Result<Vec<String>> {
+/// `version_id` picks a specific version; it must be compatible with the
+/// instance. `None` installs the newest compatible version.
+pub async fn install_project(inst: &Instance, project_id: &str, version_id: Option<String>, rep: &Reporter) -> Result<Vec<String>> {
     let mut index = InstalledIndex::load(inst);
-    let mut queue: VecDeque<(String, Option<String>)> = VecDeque::from([(project_id.to_string(), None)]);
+    let mut queue: VecDeque<(String, Option<String>)> = VecDeque::from([(project_id.to_string(), version_id)]);
     let mut done: HashSet<String> = HashSet::new();
     let mut installed = Vec::new();
 
@@ -244,20 +291,24 @@ pub async fn install_project(inst: &Instance, project_id: &str, rep: &Reporter) 
         if pid != project_id && index.has(inst, &pid) {
             continue;
         }
-        let project: Project = net::get_json(&format!("{API}/project/{pid}")).await?;
+        let project: Project = net::get_json(&format!("{}/project/{pid}", api())).await?;
         let ct = ContentType::from_api(&project.project_type);
         if ct == ContentType::Modpack {
             bail!("{} is a modpack — install it from the Modpacks tab", project.title);
         }
         let version = match version_id {
-            Some(vid) => get_version(&vid).await?,
-            None => {
-                let loaders = if ct == ContentType::Mod { loader_filter(inst.loader) } else { vec![] };
-                let list = project_versions(&project.id, &loaders, Some(&inst.mc_version)).await?;
-                list.into_iter().next().ok_or_else(|| {
-                    anyhow!("{} has no version for Minecraft {} {}", project.title, inst.mc_version, if ct == ContentType::Mod { inst.loader.name() } else { "" })
-                })?
+            Some(vid) => {
+                let v = get_version(&vid).await?;
+                if is_compatible(inst, &v, ct) {
+                    v
+                } else if pid == project_id {
+                    bail!("{} {} doesn't work with Minecraft {} {}", project.title, v.version_number, inst.mc_version, inst.loader.name());
+                } else {
+                    // A dependency pinned to an incompatible version: use the newest one that fits.
+                    latest_compatible(inst, &project, ct).await?
+                }
             }
+            None => latest_compatible(inst, &project, ct).await?,
         };
         let file = primary(&version).ok_or_else(|| anyhow!("{} has no files", project.title))?;
         let folder = ct.folder();
@@ -328,13 +379,7 @@ pub async fn sync_installed(inst: &Instance) -> Result<usize> {
 
     // Ask Modrinth which versions those hashes belong to (one request).
     let hashes: Vec<&str> = hashed.iter().map(|(_, _, h)| h.as_str()).collect();
-    let resp = HTTP
-        .post(format!("{API}/version_files"))
-        .json(&serde_json::json!({ "hashes": hashes, "algorithm": "sha1" }))
-        .send()
-        .await?
-        .error_for_status()?;
-    let found: HashMap<String, MVersion> = resp.json().await?;
+    let found = versions_by_hash(&hashes).await?;
     if found.is_empty() {
         return Ok(0);
     }
@@ -342,7 +387,7 @@ pub async fn sync_installed(inst: &Instance) -> Result<usize> {
     // Project titles (one request).
     let ids: Vec<String> = found.values().map(|v| v.project_id.clone()).collect::<HashSet<_>>().into_iter().collect();
     let projects: Vec<Project> = HTTP
-        .get(format!("{API}/projects"))
+        .get(format!("{}/projects", api()))
         .query(&[("ids", serde_json::to_string(&ids)?)])
         .send()
         .await?
@@ -367,6 +412,20 @@ pub async fn sync_installed(inst: &Instance) -> Result<usize> {
     }
     index.save(inst)?;
     Ok(added)
+}
+
+/// Modrinth versions for SHA-1 hashes (one request).
+async fn versions_by_hash(hashes: &[&str]) -> Result<HashMap<String, MVersion>> {
+    if hashes.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let resp = HTTP
+        .post(format!("{}/version_files", api()))
+        .json(&serde_json::json!({ "hashes": hashes, "algorithm": "sha1" }))
+        .send()
+        .await?
+        .error_for_status()?;
+    Ok(resp.json().await?)
 }
 
 // ------------------------------------------------------------------ .mrpack
@@ -400,17 +459,28 @@ fn safe_rel(p: &str) -> Option<PathBuf> {
     }
 }
 
-/// Download the latest version of a Modrinth modpack and install it as a new instance.
-pub async fn install_modpack(project_id: &str, kind: Kind, rep: &Reporter) -> Result<Instance> {
-    rep.stage("Fetching modpack");
-    let versions = project_versions(project_id, &[], None).await?;
-    let v = versions.into_iter().next().ok_or_else(|| anyhow!("modpack has no versions"))?;
-    let f = primary(&v).ok_or_else(|| anyhow!("modpack has no files"))?;
+async fn download_pack(v: &MVersion) -> Result<PathBuf> {
+    let f = primary(v).ok_or_else(|| anyhow!("modpack has no files"))?;
     let path = paths().cache().join("modpacks").join(&f.filename);
     net::download_one(&Dl::new(&f.url, &path).sha1(f.hashes.get("sha1").cloned())).await?;
+    Ok(path)
+}
+
+/// Install a Modrinth modpack as a new instance. `version_id` picks a version;
+/// `None` uses the newest.
+pub async fn install_modpack(project_id: &str, version_id: Option<String>, kind: Kind, rep: &Reporter) -> Result<Instance> {
+    rep.stage("Fetching modpack");
+    let v = match version_id {
+        Some(id) => get_version(&id).await?,
+        None => modpack_versions(project_id).await?.into_iter().next().ok_or_else(|| anyhow!("modpack has no versions"))?,
+    };
+    let path = download_pack(&v).await?;
     let mut inst = install_mrpack(&path, kind, Some(project_id.to_string()), rep).await?;
+    inst.modpack_version = Some(v.id.clone());
+    inst.modpack_version_name = Some(v.version_number.clone());
+    inst.save()?;
     // Use the modpack's own icon.
-    if let Ok(p) = net::get_json::<serde_json::Value>(&format!("{API}/project/{project_id}")).await {
+    if let Ok(p) = net::get_json::<serde_json::Value>(&format!("{}/project/{project_id}", api())).await {
         if let Some(url) = p.get("icon_url").and_then(|u| u.as_str()) {
             if let Ok(icon) = cached_icon(url).await {
                 let _ = inst.set_icon_from(&icon);
@@ -420,15 +490,18 @@ pub async fn install_modpack(project_id: &str, kind: Kind, rep: &Reporter) -> Re
     Ok(inst)
 }
 
-/// Create an instance from a `.mrpack` file.
-pub async fn install_mrpack(path: &Path, kind: Kind, source: Option<String>, rep: &Reporter) -> Result<Instance> {
-    rep.stage("Reading modpack");
+fn read_index(path: &Path) -> Result<(zip::ZipArchive<std::fs::File>, MrIndex)> {
     let mut zip = zip::ZipArchive::new(std::fs::File::open(path)?)?;
     let index: MrIndex = {
         let mut s = String::new();
         zip.by_name("modrinth.index.json").context("not a Modrinth modpack (no modrinth.index.json)")?.read_to_string(&mut s)?;
         serde_json::from_str(&s)?
     };
+    Ok((zip, index))
+}
+
+/// Minecraft version, loader and loader version a pack needs.
+fn pack_target(index: &MrIndex) -> Result<(String, Loader, Option<String>)> {
     let mc = index.dependencies.get("minecraft").cloned().ok_or_else(|| anyhow!("modpack doesn't say which Minecraft version it needs"))?;
     let (loader, lv) = index
         .dependencies
@@ -440,64 +513,110 @@ pub async fn install_mrpack(path: &Path, kind: Kind, source: Option<String>, rep
             (l, Some(v))
         })
         .unwrap_or((Loader::Vanilla, None));
+    Ok((mc, loader, lv))
+}
 
-    let name = if index.version_id.is_empty() { index.name.clone() } else { format!("{} {}", index.name, index.version_id) };
-    let mut inst = Instance::new(&name, kind, &mc, loader, lv);
-    inst.modpack = source;
-    inst.save()?;
+fn side_name(kind: Kind) -> &'static str {
+    if kind == Kind::Client { "client" } else { "server" }
+}
+
+/// Pack files for this side, as `/`-separated paths relative to the game folder.
+fn pack_paths(index: &MrIndex, kind: Kind) -> Vec<(String, &MrFile)> {
+    let side = side_name(kind);
+    index
+        .files
+        .iter()
+        .filter(|f| !f.env.as_ref().and_then(|e| e.get(side)).map(|s| s == "unsupported").unwrap_or(false))
+        .filter_map(|f| safe_rel(&f.path).map(|r| (r.to_string_lossy().replace('\\', "/"), f)))
+        .collect()
+}
+
+fn pack_files_path(inst: &Instance) -> PathBuf {
+    inst.dir().join("modpack-files.json")
+}
+
+fn load_pack_files(inst: &Instance) -> Vec<String> {
+    std::fs::read(pack_files_path(inst)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn save_pack_files(inst: &Instance, files: &[String]) -> Result<()> {
+    std::fs::write(pack_files_path(inst), serde_json::to_vec_pretty(files)?)?;
+    Ok(())
+}
+
+fn disabled_path(p: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.disabled", p.to_string_lossy()))
+}
+
+/// Files a player changes themselves: when switching pack versions, keep theirs.
+fn is_player_file(rel: &Path) -> bool {
+    let s = rel.to_string_lossy().replace('\\', "/");
+    s.starts_with("saves/") || matches!(s.as_str(), "options.txt" | "servers.dat" | "server.properties" | "ops.json" | "whitelist.json")
+}
+
+/// Download a pack's files and apply its overrides into the instance.
+/// With `update`, the player's own settings and worlds are left alone.
+async fn apply_pack(inst: &Instance, zip: &mut zip::ZipArchive<std::fs::File>, index: &MrIndex, update: bool, rep: &Reporter) -> Result<Vec<String>> {
     let game = inst.game_dir();
-    let side = if kind == Kind::Client { "client" } else { "server" };
-
+    let files = pack_paths(index, inst.kind);
     let mut dls = Vec::new();
-    for f in &index.files {
-        if f.env.as_ref().and_then(|e| e.get(side)).map(|s| s == "unsupported").unwrap_or(false) {
-            continue;
+    let mut keep_disabled = Vec::new();
+    for (rel, f) in &files {
+        let path = game.join(rel);
+        // A pack mod the player switched off stays off.
+        let off = disabled_path(&path);
+        if update && off.exists() {
+            let _ = std::fs::remove_file(&off);
+            keep_disabled.push(path.clone());
         }
-        let Some(rel) = safe_rel(&f.path) else {
-            rep.warn(format!("Skipping unsafe path in modpack: {}", f.path));
-            continue;
-        };
-        dls.push(Dl {
-            urls: f.downloads.clone(),
-            path: game.join(rel),
-            sha1: f.hashes.get("sha1").cloned(),
-            size: Some(f.file_size).filter(|s| *s > 0),
-        });
+        dls.push(Dl { urls: f.downloads.clone(), path, sha1: f.hashes.get("sha1").cloned(), size: Some(f.file_size).filter(|s| *s > 0) });
     }
     net::download_all(dls, rep, "Downloading modpack files", true).await?;
+    for p in keep_disabled {
+        let _ = std::fs::rename(&p, disabled_path(&p));
+    }
 
     rep.stage("Applying overrides");
-    let side_dir = format!("{side}-overrides/");
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i)?;
-        let name = entry.name()?.to_string();
-        let rel = name.strip_prefix("overrides/").or_else(|| name.strip_prefix(side_dir.as_str()));
-        let Some(rel) = rel else { continue };
-        if entry.is_dir() || rel.is_empty() {
-            continue;
-        }
-        let Some(rel) = safe_rel(rel) else { continue };
-        let dst = game.join(rel);
-        if let Some(p) = dst.parent() {
-            std::fs::create_dir_all(p)?;
-        }
-        let mut out = std::fs::File::create(&dst)?;
-        std::io::copy(&mut entry, &mut out)?;
-    }
-    // Overrides from `*-overrides/` must win over `overrides/`, and zip order isn't guaranteed.
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i)?;
-        let name = entry.name()?.to_string();
-        if let Some(rel) = name.strip_prefix(side_dir.as_str()) {
+    let side_dir = format!("{}-overrides/", side_name(inst.kind));
+    // `overrides/` first, then `<side>-overrides/` so they win (zip order isn't guaranteed).
+    for pass in 0..2 {
+        for i in 0..zip.len() {
+            let mut entry = zip.by_index(i)?;
+            let name = entry.name()?.to_string();
+            let rel = if pass == 0 { name.strip_prefix("overrides/") } else { name.strip_prefix(side_dir.as_str()) };
+            let Some(rel) = rel else { continue };
             if entry.is_dir() || rel.is_empty() {
                 continue;
             }
-            if let Some(rel) = safe_rel(rel) {
-                let mut out = std::fs::File::create(game.join(rel))?;
-                std::io::copy(&mut entry, &mut out)?;
+            let Some(rel) = safe_rel(rel) else { continue };
+            let dst = game.join(&rel);
+            if update && dst.exists() && is_player_file(&rel) {
+                continue;
             }
+            if let Some(p) = dst.parent() {
+                std::fs::create_dir_all(p)?;
+            }
+            let mut out = std::fs::File::create(&dst)?;
+            std::io::copy(&mut entry, &mut out)?;
         }
     }
+    Ok(files.into_iter().map(|(r, _)| r).collect())
+}
+
+/// Create an instance from a `.mrpack` file.
+pub async fn install_mrpack(path: &Path, kind: Kind, source: Option<String>, rep: &Reporter) -> Result<Instance> {
+    rep.stage("Reading modpack");
+    let (mut zip, index) = read_index(path)?;
+    let (mc, loader, lv) = pack_target(&index)?;
+    let name = if index.version_id.is_empty() { index.name.clone() } else { format!("{} {}", index.name, index.version_id) };
+    let mut inst = Instance::new(&name, kind, &mc, loader, lv);
+    inst.modpack = source;
+    if !index.version_id.is_empty() {
+        inst.modpack_version_name = Some(index.version_id.clone());
+    }
+    inst.save()?;
+    let files = apply_pack(&inst, &mut zip, &index, false, rep).await?;
+    save_pack_files(&inst, &files)?;
     rep.stage("Identifying the modpack's mods");
     match sync_installed(&inst).await {
         Ok(n) => rep.info(format!("Recognised {n} mods/packs from Modrinth")),
@@ -505,6 +624,119 @@ pub async fn install_mrpack(path: &Path, kind: Kind, source: Option<String>, rep
     }
     rep.info(format!("Created instance “{}” ({} {})", inst.name, mc, loader.name()));
     Ok(inst)
+}
+
+/// What happened to the player's own content when a pack version changed.
+#[derive(Default, Debug, Clone)]
+pub struct PackChange {
+    /// Moved to a version that fits the new Minecraft version.
+    pub updated: Vec<String>,
+    /// No compatible version exists, so they were switched off.
+    pub disabled: Vec<String>,
+}
+
+/// Switch a modpack instance to another version of its pack, in place.
+/// Worlds and the player's settings are kept. Content the player added
+/// themselves is moved to a compatible version, or switched off if none exists.
+pub async fn change_modpack_version(inst: &Instance, version_id: &str, rep: &Reporter) -> Result<(Instance, PackChange)> {
+    let mut inst = inst.clone();
+    let pack_id = inst.modpack.clone().ok_or_else(|| anyhow!("this instance wasn't installed from a Modrinth modpack"))?;
+    rep.stage("Fetching modpack version");
+    let v = get_version(version_id).await?;
+    if v.project_id != pack_id {
+        bail!("that version belongs to a different modpack");
+    }
+    let path = download_pack(&v).await?;
+    let (mut zip, index) = read_index(&path)?;
+    let (mc, loader, lv) = pack_target(&index)?;
+    let game = inst.game_dir();
+    let new_paths: HashSet<String> = pack_paths(&index, inst.kind).into_iter().map(|(r, _)| r).collect();
+
+    rep.stage("Removing the old version's files");
+    let remove = |p: &Path| {
+        let _ = std::fs::remove_file(p);
+        let _ = std::fs::remove_file(disabled_path(p));
+    };
+    for rel in load_pack_files(&inst) {
+        if !new_paths.contains(&rel) {
+            if let Some(r) = safe_rel(&rel) {
+                remove(&game.join(r));
+            }
+        }
+    }
+    // Older copies of mods the new version ships under another file name
+    // (also covers instances made before Lodestone tracked pack files).
+    let hashes: Vec<&str> = index.files.iter().filter_map(|f| f.hashes.get("sha1").map(|s| s.as_str())).collect();
+    let index_before = InstalledIndex::load(&inst);
+    match versions_by_hash(&hashes).await {
+        Ok(found) => {
+            let pack_projects: HashSet<&str> = found.values().map(|v| v.project_id.as_str()).collect();
+            let mut idx = InstalledIndex::load(&inst);
+            for (pid, p) in &index_before.projects {
+                if pack_projects.contains(pid.as_str()) && !new_paths.contains(&format!("{}/{}", p.folder, p.file)) {
+                    remove(&inst.content_dir(&p.folder).join(&p.file));
+                    idx.projects.remove(pid);
+                }
+            }
+            idx.save(&inst)?;
+        }
+        Err(e) => rep.warn(format!("Couldn't check for older copies of the pack's mods: {e:#}")),
+    }
+
+    let files = apply_pack(&inst, &mut zip, &index, true, rep).await?;
+
+    let (old_mc, old_loader) = (inst.mc_version.clone(), inst.loader);
+    inst.mc_version = mc.clone();
+    inst.loader = loader;
+    inst.loader_version = lv;
+    inst.version_id = None;
+    inst.server.launch = None;
+    if let Some(old) = inst.modpack_version_name.clone() {
+        if let Some(base) = inst.name.strip_suffix(old.as_str()) {
+            inst.name = format!("{base}{}", v.version_number);
+        }
+    }
+    inst.modpack_version = Some(v.id.clone());
+    inst.modpack_version_name = Some(v.version_number.clone());
+    inst.save()?;
+    save_pack_files(&inst, &files)?;
+
+    rep.stage("Identifying the modpack's mods");
+    if let Err(e) = sync_installed(&inst).await {
+        rep.warn(format!("Couldn't identify the modpack's mods: {e:#}"));
+    }
+
+    let mut change = PackChange::default();
+    if old_mc != inst.mc_version || old_loader != inst.loader {
+        rep.stage("Checking your own mods");
+        let pack: HashSet<String> = files.into_iter().collect();
+        let idx = InstalledIndex::load(&inst);
+        for (pid, p) in idx.projects {
+            if pack.contains(&format!("{}/{}", p.folder, p.file)) {
+                continue;
+            }
+            let file = inst.content_dir(&p.folder).join(&p.file);
+            if !file.exists() && !disabled_path(&file).exists() {
+                continue;
+            }
+            match compatible_versions(&inst, &pid).await {
+                Ok(list) if list.iter().any(|x| x.version_number == p.version) => {}
+                Ok(list) if !list.is_empty() => match install_project(&inst, &pid, Some(list[0].id.clone()), rep).await {
+                    Ok(_) => change.updated.push(p.title.clone()),
+                    Err(e) => rep.warn(format!("Couldn't update {}: {e:#}", p.title)),
+                },
+                Ok(_) => {
+                    if file.exists() {
+                        let _ = std::fs::rename(&file, disabled_path(&file));
+                    }
+                    change.disabled.push(p.title.clone());
+                }
+                Err(e) => rep.warn(format!("Couldn't check {}: {e:#}", p.title)),
+            }
+        }
+    }
+    rep.info(format!("Switched to {} {} ({} {})", index.name, v.version_number, mc, loader.name()));
+    Ok((inst, change))
 }
 
 /// Download (and cache) a project icon; returns the local path.
@@ -515,4 +747,75 @@ pub async fn cached_icon(url: &str) -> Result<PathBuf> {
         net::download_one(&Dl::new(url, &path)).await?;
     }
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ver(games: &[&str], loaders: &[&str]) -> MVersion {
+        MVersion {
+            id: "x".into(),
+            project_id: "p".into(),
+            name: String::new(),
+            version_number: "1".into(),
+            game_versions: games.iter().map(|s| s.to_string()).collect(),
+            loaders: loaders.iter().map(|s| s.to_string()).collect(),
+            files: vec![],
+            dependencies: vec![],
+            date_published: String::new(),
+            version_type: "release".into(),
+        }
+    }
+
+    #[test]
+    fn compatibility() {
+        let mut inst = Instance::new("t", Kind::Client, "1.21", Loader::Fabric, None);
+        assert!(is_compatible(&inst, &ver(&["1.21"], &["fabric"]), ContentType::Mod));
+        assert!(!is_compatible(&inst, &ver(&["1.20.1"], &["fabric"]), ContentType::Mod));
+        assert!(!is_compatible(&inst, &ver(&["1.21"], &["forge"]), ContentType::Mod));
+        // Resource packs only care about the game version.
+        assert!(is_compatible(&inst, &ver(&["1.21"], &["minecraft"]), ContentType::ResourcePack));
+        // Quilt runs Fabric mods.
+        inst.loader = Loader::Quilt;
+        assert!(is_compatible(&inst, &ver(&["1.21"], &["fabric"]), ContentType::Mod));
+    }
+
+    /// End-to-end against a mock Modrinth: `LODESTONE_MODRINTH_API=http://127.0.0.1:PORT cargo test -- --ignored`.
+    #[tokio::test]
+    #[ignore]
+    async fn change_pack_version() {
+        let rep = Reporter::new("test");
+        let inst = install_modpack("PACK", Some("P1".into()), Kind::Client, &rep).await.unwrap();
+        assert_eq!(inst.mc_version, "1.20.1");
+        assert_eq!(inst.name, "Pack 1.0");
+        install_project(&inst, "U", None, &rep).await.unwrap();
+        install_project(&inst, "W", None, &rep).await.unwrap();
+        let game = inst.game_dir();
+        std::fs::write(game.join("options.txt"), "mine").unwrap();
+        std::fs::create_dir_all(game.join("saves/world")).unwrap();
+        std::fs::write(game.join("saves/world/level.dat"), "w").unwrap();
+        // The player switched a pack mod off.
+        std::fs::rename(game.join("mods/b-1.0.jar"), game.join("mods/b-1.0.jar.disabled")).unwrap();
+
+        let (inst, change) = change_modpack_version(&inst, "P2", &rep).await.unwrap();
+        let mut mods: Vec<String> = std::fs::read_dir(game.join("mods")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        mods.sort();
+        assert_eq!(mods, ["a-2.jar", "c.jar", "u-2.jar", "w.jar.disabled"]);
+        assert_eq!(std::fs::read_to_string(game.join("options.txt")).unwrap(), "mine");
+        assert_eq!(std::fs::read_to_string(game.join("config/x.txt")).unwrap(), "v2");
+        assert!(game.join("saves/world/level.dat").exists());
+        assert_eq!(inst.mc_version, "1.21");
+        assert_eq!(inst.loader_version.as_deref(), Some("0.16.0"));
+        assert_eq!(inst.name, "Pack 2.0");
+        assert_eq!(change.updated, ["UserMod"]);
+        assert_eq!(change.disabled, ["OldOnly"]);
+        // A version that doesn't fit is refused.
+        assert!(install_project(&inst, "W", Some("W1".into()), &rep).await.is_err());
+        // Going back works too.
+        let (inst, _) = change_modpack_version(&inst, "P1", &rep).await.unwrap();
+        assert_eq!(inst.mc_version, "1.20.1");
+        assert!(game.join("mods/a.jar").exists() && game.join("mods/b-1.0.jar").exists() && !game.join("mods/c.jar").exists());
+        assert!(game.join("mods/u-1.jar").exists() && !game.join("mods/u-2.jar").exists());
+    }
 }
